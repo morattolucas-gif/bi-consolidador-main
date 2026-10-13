@@ -1,0 +1,21 @@
+# Arquivos locais confidenciais (LGPD e sigilo financeiro)
+grupos.js
+*.xlsx
+*.xls
+*.pdf
+*.csv
+*.png
+*.jpg
+*.jpeg
+
+# Arquivos de sistema e editores
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.log
+
+# Backups e temporários
+*.bak
+*.tmp
+~*
