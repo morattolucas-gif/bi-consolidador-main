@@ -787,6 +787,24 @@ table.conf td:nth-child(4) input { text-align: right; }
 'use strict';
 
 /* =====================================================================
+   Precisão Numérica Financeira (BigNumber): elimina resíduos de ponto flutuante IEEE-754
+   ===================================================================== */
+const bn = v => (typeof BigNumber !== 'undefined' ? new BigNumber(v || 0) : null);
+const somaPrecisa = (...nums) => typeof BigNumber !== 'undefined' ? nums.reduce((a, b) => a.plus(b || 0), new BigNumber(0)).toNumber() : nums.reduce((a, b) => a + (b || 0), 0);
+const subPrecisa = (a, b) => typeof BigNumber !== 'undefined' ? new BigNumber(a || 0).minus(b || 0).toNumber() : (a || 0) - (b || 0);
+const multPrecisa = (a, b) => typeof BigNumber !== 'undefined' ? new BigNumber(a || 0).times(b || 0).toNumber() : (a || 0) * (b || 0);
+const divPrecisa = (a, b) => (typeof BigNumber !== 'undefined' && b) ? new BigNumber(a || 0).dividedBy(b).toNumber() : (b ? (a || 0) / b : 0);
+const arredondarFinanceiro = (v, c = 2) => typeof BigNumber !== 'undefined' ? new BigNumber(v || 0).decimalPlaces(c, BigNumber.ROUND_HALF_UP).toNumber() : Math.round((v || 0) * Math.pow(10, c)) / Math.pow(10, c);
+const somaLista = (lista, fn) => {
+  if (!lista || !lista.length) return 0;
+  const fnVal = typeof fn === 'function' ? fn : (x => x);
+  if (typeof BigNumber !== 'undefined') {
+    return lista.reduce((acc, item) => acc.plus(fnVal(item) || 0), new BigNumber(0)).toNumber();
+  }
+  return lista.reduce((acc, item) => acc + (fnVal(item) || 0), 0);
+};
+
+/* =====================================================================
    Formatação (padrão brasileiro)
    ===================================================================== */
 const fmtBRL = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -957,7 +975,7 @@ function gerarExemplo() {
     const patrimonio = Math.exp(14.2 + 0.8 * normal());
     const idx = catalogo.map((_, k) => k).sort(() => rnd() - 0.5).slice(0, 4 + Math.floor(rnd() * 6));
     const pesos = idx.map(() => -Math.log(1 - rnd())).concat([-Math.log(1 - rnd()) * 0.5]);
-    const soma = pesos.reduce((a, b) => a + b, 0);
+    const soma = somaLista(pesos);
     idx.forEach((k, j) => {
       const [mercado, sub, ativo, produto, emissor, venc, estrategia, taxa] = catalogo[k];
       const bruto = Math.round(patrimonio * pesos[j] / soma * 100) / 100;
@@ -995,18 +1013,7 @@ const CHAVE = { classe: p => p.classe, subclasse: p => p.subclasse, estrategia: 
 const valor = p => p[S.campoValor];
 const dimDe = p => p[S.dim];
 
-/* Precisão Numérica Financeira (BigNumber): elimina resíduos de ponto flutuante IEEE-754 */
-const bn = v => (typeof BigNumber !== 'undefined' ? new BigNumber(v || 0) : null);
-const somaPrecisa = (...nums) => typeof BigNumber !== 'undefined' ? nums.reduce((a, b) => a.plus(b || 0), new BigNumber(0)).toNumber() : nums.reduce((a, b) => a + (b || 0), 0);
-const multPrecisa = (a, b) => typeof BigNumber !== 'undefined' ? new BigNumber(a || 0).times(b || 0).toNumber() : (a || 0) * (b || 0);
-const arredondarFinanceiro = (v, c = 2) => typeof BigNumber !== 'undefined' ? new BigNumber(v || 0).decimalPlaces(c, BigNumber.ROUND_HALF_UP).toNumber() : Math.round((v || 0) * Math.pow(10, c)) / Math.pow(10, c);
-
-const somar = lista => {
-  if (typeof BigNumber !== 'undefined') {
-    return lista.reduce((acc, p) => acc.plus(valor(p) || 0), new BigNumber(0)).toNumber();
-  }
-  return lista.reduce((a, p) => a + (valor(p) || 0), 0);
-};
+const somar = lista => somaLista(lista, valor);
 
 function somarPor(lista, chave) {
   const m = new Map();
@@ -1028,8 +1035,8 @@ function contasResumo() {
   for (const p of S.posicoes) {
     let c = m.get(p.conta);
     if (!c) m.set(p.conta, c = { conta: p.conta, nome: p.nome, pl: 0, caixa: 0, n: 0 });
-    c.pl += valor(p); c.n++;
-    if (p.caixa) c.caixa += valor(p);
+    c.pl = somaPrecisa(c.pl, valor(p)); c.n++;
+    if (p.caixa) c.caixa = somaPrecisa(c.caixa, valor(p));
   }
   return m;
 }
@@ -1099,7 +1106,7 @@ function unidades(nivel = 'cliente') {
     if (!u) m.set(key, u = f
       ? { key, tipo: 'familia', nome: f.nome, sub: `família · ${f.clientes.length} clientes`, contas: [], pl: 0, caixa: 0 }
       : { key, tipo: 'cliente', nome: c.nome, sub: descContas(c) + (c.familiaId ? ` · ${S.familias.get(c.familiaId).nome}` : ''), contas: [], pl: 0, caixa: 0 });
-    for (const ct of c.contas) { const r = resumo.get(ct); if (!r) continue; u.contas.push(ct); u.pl += r.pl; u.caixa += r.caixa; }
+    for (const ct of c.contas) { const r = resumo.get(ct); if (!r) continue; u.contas.push(ct); u.pl = somaPrecisa(u.pl, r.pl); u.caixa = somaPrecisa(u.caixa, r.caixa); }
   }
   return m;
 }
@@ -1174,7 +1181,7 @@ function tabela(id, cols, linhas, { attr = null, padrao = null } = {}) {
 function renderCarteira() {
   const P = S.posicoes, total = somar(P), contas = contasResumo();
   const nomes = new Set(P.map(p => p.nome)).size;
-  const caixaTotal = P.filter(p => p.caixa).reduce((a, p) => a + valor(p), 0);
+  const caixaTotal = somaLista(P.filter(p => p.caixa), valor);
   $('#kpi-carteira').innerHTML =
     kpi('Patrimônio total', brlCurto(total), '', brl(total)) +
     kpi('Clientes', inteiro(S.clientes.size), `${inteiro(contas.size)} contas${S.familias.size ? ` · ${inteiro(S.familias.size)} família(s) com 2+ pessoas` : ''}`) +
@@ -1251,14 +1258,14 @@ function renderMapa(contas, total) {
   for (const p of P) {
     const u = unidadeDe(p.conta, nivel);
     let m = cel.get(u); if (!m) cel.set(u, m = new Map());
-    const k = chave(p); m.set(k, (m.get(k) || 0) + valor(p));
+    const k = chave(p); m.set(k, somaPrecisa(m.get(k), valor(p)));
   }
   const emPct = M.metrica === 'pctConta';
   let linhas = [...unidades(nivel).values()].map(u => {
     const m = cel.get(u.key) || new Map();
     const r = { u, nome: u.nome, pl: u.pl, tot: 0 };
     for (const [k] of colunas) { const v = m.get(k) || 0; r['c:' + k] = emPct ? v / u.pl : v; }
-    const tot = [...m.values()].reduce((a, b) => a + b, 0);
+    const tot = somaLista([...m.values()]);
     r.tot = emPct ? tot / u.pl : tot;
     return r;
   });
@@ -1306,7 +1313,7 @@ function renderRaioX(contas, total) {
   const porAtivo = ordenadoDesc(somarPor(P, p => p.nomeAtivo));
   const contasPorAtivo = new Map();
   for (const p of P) { if (!contasPorAtivo.has(p.nomeAtivo)) contasPorAtivo.set(p.nomeAtivo, new Set()); contasPorAtivo.get(p.nomeAtivo).add(p.clienteId); }
-  const top1 = porAtivo[0]?.[1] || 0, top5 = porAtivo.slice(0, 5).reduce((a, [, v]) => a + v, 0);
+  const top1 = porAtivo[0]?.[1] || 0, top5 = somaLista(porAtivo.slice(0, 5), ([, v]) => v);
   $('#kpi-raiox').innerHTML =
     kpi('Na classe', brlCurto(vClasse), `${pct(vClasse / total)} da carteira`, brl(vClasse)) +
     kpi('Ativos', inteiro(porAtivo.length), `em ${inteiro(new Set(P.map(p => p.clienteId)).size)} clientes`) +
@@ -1340,7 +1347,7 @@ function posicoesSimuladas(conta, extras = []) {
   }
   return base.concat(linhas);
 }
-const somaSe = (P, f) => P.filter(f).reduce((a, p) => a + valor(p), 0);
+const somaSe = (P, f) => somaLista(P.filter(f), valor);
 
 // Seleção atual da aba: um cliente (todas as contas da pessoa) ou uma família (2+ pessoas)
 function selecao() {
@@ -1384,9 +1391,10 @@ function calcularMov() {
     const filtro = { ativo: p => p.nomeAtivo === info.ativo, subclasse: p => p.classe === info.classe && p.subclasse === info.subclasse, classe: p => p.classe === info.classe }[S.fm.modo];
     const atual = somaSe(P, filtro);
     // Com recurso do caixa o patrimônio não muda; com aporte ele cresce junto
-    v = S.fm.origem === 'aporte' ? (t * pl - atual) / (1 - t) : t * pl - atual;
+    const tPl = multPrecisa(t, pl);
+    v = S.fm.origem === 'aporte' ? divPrecisa(subPrecisa(tPl, atual), subPrecisa(1, t)) : subPrecisa(tPl, atual);
   }
-  return { ...info, v: Math.round(v * 100) / 100, origem: S.fm.origem };
+  return { ...info, v: arredondarFinanceiro(v, 2), origem: S.fm.origem };
 }
 
 // Opções do seletor: famílias (2+ pessoas) e clientes
@@ -1417,8 +1425,8 @@ function renderConta() {
   const s = selecao();
   const resumo = contasResumo();
   const cts = contasSel();
-  const pl = cts.reduce((a, ct) => a + resumo.get(ct).pl, 0);
-  const caixa = cts.reduce((a, ct) => a + resumo.get(ct).caixa, 0);
+  const pl = somaLista(cts, ct => resumo.get(ct)?.pl);
+  const caixa = somaLista(cts, ct => resumo.get(ct)?.caixa);
   const Pa = S.posicoes.filter(p => cts.includes(p.conta));
   const Ps = posSel();
   const movs = cts.flatMap(ct => (S.movs.get(ct) || []).map((m, i) => ({ ...m, conta: ct, i })));
@@ -1608,7 +1616,7 @@ function renderSimPreview() {
 function renderMovs(movs) {
   $('#sim-limpar').hidden = !movs.length;
   if (!movs.length) { $('#sim-movs').innerHTML = ''; return; }
-  const aplic = movs.filter(m => m.v > 0).reduce((a, m) => a + m.v, 0), resg = movs.filter(m => m.v < 0).reduce((a, m) => a - m.v, 0);
+  const aplic = somaLista(movs.filter(m => m.v > 0), m => m.v), resg = somaLista(movs.filter(m => m.v < 0), m => -m.v);
   const g = contasSel().length > 1;
   $('#sim-movs').innerHTML = `<div class="bloco-sim"><div class="box-k">Movimentos da simulação</div><div class="tabela-wrap" style="max-height:none"><table><thead><tr>
       <th>Ativo</th>${g ? '<th>Conta</th>' : ''}<th>Classe › Subclasse</th><th class="n">Movimento</th><th>Dinheiro</th><th></th></tr></thead><tbody>` +
@@ -1982,7 +1990,7 @@ const listaNomes = (itens, max = 3) => {
 };
 function agruparDG(L, chave) {
   const m = new Map();
-  for (const x of L) { const k = chave(x); let g = m.get(k); if (!g) m.set(k, g = { k, v: 0, itens: [] }); g.v += x.v; g.itens.push(x); }
+  for (const x of L) { const k = chave(x); let g = m.get(k); if (!g) m.set(k, g = { k, v: 0, itens: [] }); g.v = somaPrecisa(g.v, x.v); g.itens.push(x); }
   return [...m.values()].sort((a, b) => b.v - a.v);
 }
 
@@ -1996,7 +2004,7 @@ function agregarPosicoes(L, titularDe) {
     const k = [titularDe(x), x.p.instituicao, base, x.classe, x.cp, x.ge, x.prazo, x.janela, x.v < 0].join('|');
     let g = m.get(k);
     if (!g) m.set(k, g = { ...x, base, prev, n: 0, v: 0, caracs: new Set(), confirmado: true });
-    g.n++; g.v += x.v; g.caracs.add(x.carac); g.confirmado = g.confirmado && x.confirmado;
+    g.n++; g.v = somaPrecisa(g.v, x.v); g.caracs.add(x.carac); g.confirmado = g.confirmado && x.confirmado;
   }
   return [...m.values()].map(g => {
     const nome = g.prev ? `${g.base} — ${g.n} ${g.n === 1 ? 'plano' : 'planos'}` : g.n > 1 ? `${g.base} — ${g.n} papéis` : g.base;
@@ -2022,10 +2030,10 @@ function renderDiag(s, P) {
   const todos = P.map(p => dgEnriquecer(p, base)).filter(x => Math.abs(x.v) > 0.004);
   // Valores em trânsito não são posição alocável: ficam fora da análise, com nota
   const transito = todos.filter(x => x.p.transito && norm(x.p.classe) !== 'derivativos');
-  const vTransito = transito.reduce((a, x) => a + x.v, 0);
+  const vTransito = somaLista(transito, x => x.v);
   const notaTransito = transito.length ? `Os valores em trânsito de ${rsDG(vTransito)} que constam do extrato foram excluídos desta análise: não representam posição alocável.` : '';
   const brutos = todos.filter(x => !transito.includes(x));
-  const total = brutos.reduce((a, x) => a + x.v, 0);
+  const total = somaLista(brutos, x => x.v);
   if (!brutos.length || !(total > 0)) { alvo.innerHTML = ''; return; }
 
   // Titular: na família, cada cliente; numa pessoa com várias contas, cada conta
@@ -2055,7 +2063,7 @@ function renderDiag(s, P) {
   // Travas: toda visão soma o total (seção 3 do padrão)
   const eq = (a, b) => Math.abs(a - b) < 0.02;
   const travas = [['classe', classes], ['contraparte', cps], ['horizonte', agruparDG(L, x => x.prazo)], ['titular', titulares], ['gestora/emissor', agruparDG(L, x => x.ge)], ['liquidez', agruparDG(L, x => x.janela)]]
-    .filter(([, g]) => !eq(g.reduce((a, x) => a + x.v, 0), total)).map(([n]) => n);
+    .filter(([, g]) => !eq(somaLista(g, x => x.v), total)).map(([n]) => n);
   if (travas.length) { alvo.innerHTML = `<div class="erro">Os agregados não fecham com o total (${esc(travas.join(', '))}). A visão foi bloqueada para não mostrar número errado.</div>`; return; }
 
   // Seções: { t, sub, corpo }. A numeração (01, 02…) é feita no fim, porque seções longas podem ser divididas
@@ -2067,8 +2075,8 @@ function renderDiag(s, P) {
   let grupoAtual = '';
   const grupo = (id, rot, padrao = true) => { grupoAtual = id; itensRel.push({ id, rot, padrao, blocos: [] }); };
   const bl = (id, rot, padrao, html) => { itensRel.at(-1).blocos.push({ id, rot, padrao }); return `<div class="bl-rel" data-bloco="${id}">${html}</div>`; };
-  const intl = L.filter(x => x.intl).reduce((a, x) => a + x.v, 0);
-  const prevs = L.filter(x => x.prev), vPrev = prevs.reduce((a, x) => a + x.v, 0), nPlanos = prevs.reduce((a, x) => a + x.n, 0);
+  const intl = somaLista(L.filter(x => x.intl), x => x.v);
+  const prevs = L.filter(x => x.prev), vPrev = somaLista(prevs, x => x.v), nPlanos = somaLista(prevs, x => x.n);
   const contas = [...new Set(brutos.map(x => x.p.conta))];
   const insts = [...new Set(brutos.map(x => x.p.instituicao))];
   const colTit = multi ? [{ rot: 'Tit.', w: '6%', l: 1, cls: 'ativos', f: x => inicial(x) }] : [];
@@ -2084,7 +2092,7 @@ function renderDiag(s, P) {
   let tabCpInst = '';
   grupo('consolidacao', 'Consolidação patrimonial');
   {
-    const usdTot = L.reduce((a, x) => a + (x.p.usd || 0), 0);
+    const usdTot = somaLista(L, x => x.p.usd);
     let k = kpiDG('Patrimônio consolidado', rsDG(total), `${brutos.length} posições • ${contas.length} ${contas.length === 1 ? 'conta' : 'contas'}${insts.length > 1 ? ' em ' + insts.join(', ') : ''}${vTransito ? ` • + ${rsDG(vTransito)} em trânsito, fora da análise` : ''}`, 'main');
     const tops = multi ? titulares.slice(0, titulares.length > 2 ? 1 : 2) : [];
     for (const t of tops) k += kpiDG(rotTit(t.k), rsDG(t.v), `${pcT(t.v)} • ${[...new Set(t.itens.map(x => x.p.conta))].map(c => 'conta ' + c).join(', ')}`, '', t.v / total);
@@ -2103,7 +2111,7 @@ function renderDiag(s, P) {
       ], titulares, ['TOTAL', `${contas.length} contas`, rsDG(total), '100,00%', L.length]);
     }
     // Maiores posições (dez quando há várias instituições, oito quando há uma)
-    const top8 = [...L].sort((a, b) => b.v - a.v).slice(0, multiInst ? 10 : 8), v8 = top8.reduce((a, x) => a + x.v, 0);
+    const top8 = [...L].sort((a, b) => b.v - a.v).slice(0, multiInst ? 10 : 8), v8 = somaLista(top8, x => x.v);
     const tab8 = tabelaDG([
       { rot: 'Posição', w: multi ? '52%' : '58%', l: 1, f: x => `<span class="nm">${top8.indexOf(x) + 1}. ${esc(x.nome)}</span>` }, ...colTI,
       { rot: 'Valor (R$)', w: '24%', f: x => rsDG(x.v) }, { rot: '% cart.', w: '18%', f: x => pcT(x.v) },
@@ -2118,7 +2126,7 @@ function renderDiag(s, P) {
     const descInst = g => {
       const ps = g.itens.map(x => x.p), cts = [...new Set(ps.map(p => String(p.conta).replace(new RegExp('^' + g.k + '\\s+'), '')))];
       const dt = ps.map(p => p.data).filter(Boolean), d = dt.length ? dataBR(new Date(Math.max(...dt))) : null;
-      const usd = ps.reduce((a, p) => a + (p.usd || 0), 0), pc = ps.find(p => p.cambio), cb = pc?.cambio;
+      const usd = somaLista(ps, p => p.usd), pc = ps.find(p => p.cambio), cb = pc?.cambio;
       const dCb = pc?.cambioData ? ` (PTAX ${pc.cambioData.split('-').reverse().join('/')})` : '';
       const quem = porFamilia ? `(${[...new Set(ps.map(p => p.clienteNome.split(' ')[0]))].join(', ')})` : '';
       const emUSD = usd ? `US$ ${num(usd)}${cb ? ` a R$ ${num(cb, 4)}${dCb}` : ''}` : '';
@@ -2133,7 +2141,7 @@ function renderDiag(s, P) {
     let matrizInst = '';
     if (multiInst) {
       const cols = [{ rot: 'Classe', w: '24%', l: 1, f: c => `${sw(c.k)}<span class="nm">${esc(CLASSES_EST[c.k].split(' (')[0])}</span>` }];
-      const vI = (c, i) => c.itens.filter(x => x.p.instituicao === i.k).reduce((a, x) => a + x.v, 0);
+      const vI = (c, i) => somaLista(c.itens.filter(x => x.p.instituicao === i.k), x => x.v);
       for (const i of porInst) cols.push({ rot: sigla(i.k), w: 'auto', f: c => vI(c, i) ? rsDG(vI(c, i)) : '—' });
       cols.push({ rot: 'Consolidado', w: 'auto', cls: 'tot', f: c => rsDG(c.v) }, { rot: '%', w: '8%', cls: 'tot', f: c => pcT(c.v) });
       matrizInst = tabelaDG(cols, classes, ['TOTAL', ...porInst.map(i => rsDG(i.v)), rsDG(total), '100,00%']);
@@ -2153,8 +2161,8 @@ function renderDiag(s, P) {
   grupo('classes', 'Alocação por classe estratégica');
   {
     const positivas = classes.filter(c => c.v > 0);
-    const somaPos = positivas.reduce((a, c) => a + c.v, 0);
-    const rosca = donutDG(positivas.map(c => ({ pct: c.v / somaPos * 100, cor: cor.get(c.k), rot: CLASSES_EST[c.k] })), multi ? 'Consolidado' : 'Carteira', brlCurto(total).replace(/ mi$/, ' MM'));
+    const somaPos = somaLista(positivas, c => c.v);
+    const rosca = donutDG(positivas.map(c => ({ pct: divPrecisa(c.v, somaPos) * 100, cor: cor.get(c.k), rot: CLASSES_EST[c.k] })), multi ? 'Consolidado' : 'Carteira', brlCurto(total).replace(/ mi$/, ' MM'));
     const tabClasses = tabelaDG([
       { rot: 'Classe estratégica', w: '26%', l: 1, f: c => `${sw(c.k)}<span class="nm">${esc(CLASSES_EST[c.k])}</span>` },
       { rot: 'Valor (R$)', w: '17%', f: c => rsDG(c.v) }, { rot: '%', w: '9%', f: c => pcT(c.v) }, { rot: 'Nº', w: '6%', f: c => c.itens.length },
@@ -2163,7 +2171,7 @@ function renderDiag(s, P) {
     let corpo = `<div class="dg-classe"><div class="dg-rosca">${rosca}</div><div>${tabClasses}</div></div>`;
     if (multi) {
       const cols = [{ rot: 'Classe estratégica', w: '22%', l: 1, f: c => `${sw(c.k)}<span class="nm">${esc(CLASSES_EST[c.k])}</span>` }];
-      const vT = (c, t) => c.itens.filter(x => titularDe(x) === t.k).reduce((a, x) => a + x.v, 0);
+      const vT = (c, t) => somaLista(c.itens.filter(x => titularDe(x) === t.k), x => x.v);
       for (const t of titulares) {
         cols.push({ rot: `${curto(t.k)} (R$)`, w: 'auto', f: c => vT(c, t) ? rsDG(vT(c, t)) : '—' });
         cols.push({ rot: '%', w: '7%', f: c => vT(c, t) ? pcDG(vT(c, t) / t.v) : '—' });
@@ -2187,10 +2195,10 @@ function renderDiag(s, P) {
       ], linhas, ['TOTAL CONSOLIDADO', '', rsDG(total), '', '100,00%', L.length]));
     }
     const c0 = classes[0];
-    const credito = cps.filter(c => ['Corp', 'Estr'].includes(c.k)).reduce((a, c) => a + c.v, 0);
+    const credito = somaLista(cps.filter(c => ['Corp', 'Estr'].includes(c.k)), c => c.v);
     const caixa = classes.find(c => c.k === 'Caixa')?.v || 0;
     const fator = classes.filter(c => ['Pos', 'Infl', 'Pre'].includes(c.k)).sort((a, b) => b.v - a.v)[0];
-    const notaNeg = neg.length ? `${neg.map(x => esc(x.nome)).join(', ')} tem marcação negativa (${rsDG(neg.reduce((a, x) => a + x.v, 0))}): entra na tabela, na classe do fator que carrega, mas não vira fatia da rosca.` : '';
+    const notaNeg = neg.length ? `${neg.map(x => esc(x.nome)).join(', ')} tem marcação negativa (${rsDG(somaLista(neg, x => x.v))}): entra na tabela, na classe do fator que carrega, mas não vira fatia da rosca.` : '';
     const textos = [
       `A maior classe é ${esc(CLASSES_EST[c0.k].toLowerCase())}, com ${rsDG(c0.v)} (${pcT(c0.v)}).${classes[1] ? ` Em seguida vem ${esc(CLASSES_EST[classes[1].k].toLowerCase())} (${pcT(classes[1].v)}).` : ''}`,
       fator && fator.v / total >= 0.7 ? `Carteira monofator: ${pcT(fator.v)} está atrelado a um único indexador (${esc(CLASSES_EST[fator.k])}).` : '',
@@ -2208,8 +2216,8 @@ function renderDiag(s, P) {
     const pol = obterPoliticaDe(s);
     const polCl = pol.classes || {};
     const positivas = classes.filter(c => c.v > 0);
-    const somaPos = positivas.reduce((a, c) => a + c.v, 0);
-    const rosca = donutDG(positivas.map(c => ({ pct: c.v / somaPos * 100, cor: cor.get(c.k), rot: CLASSES_EST[c.k] })), 'Alocação Atual', brlCurto(total).replace(/ mi$/, ' MM'));
+    const somaPos = somaLista(positivas, c => c.v);
+    const rosca = donutDG(positivas.map(c => ({ pct: divPrecisa(c.v, somaPos) * 100, cor: cor.get(c.k), rot: CLASSES_EST[c.k] })), 'Alocação Atual', brlCurto(total).replace(/ mi$/, ' MM'));
     
     const tabClasses = tabelaDG([
       { rot: 'Classe estratégica', w: '35%', l: 1, f: c => `${sw(c.k)}<span class="nm">${esc(CLASSES_EST[c.k])}</span>` },
@@ -2239,16 +2247,16 @@ function renderDiag(s, P) {
     const movsEnquadramento = [];
     for (const r of linhasPol) {
       const vAtual = r.c.v;
-      const vMin = r.pReg.min * total;
-      const vMax = r.pReg.max * total;
-      const vAlvo = r.pReg.alvo * total;
+      const vMin = multPrecisa(r.pReg.min, total);
+      const vMax = multPrecisa(r.pReg.max, total);
+      const vAlvo = multPrecisa(r.pReg.alvo, total);
       if (r.pctAtual < r.pReg.min - 0.0001) {
         movsEnquadramento.push({
           c: r.c,
           tipo: 'Aplicar',
           motivo: `Abaixo do mínimo (${pcDG(r.pctAtual)} < ${pcDG(r.pReg.min)})`,
-          deltaMin: vMin - vAtual,
-          deltaAlvo: vAlvo - vAtual,
+          deltaMin: subPrecisa(vMin, vAtual),
+          deltaAlvo: subPrecisa(vAlvo, vAtual),
           cls: 'st-al'
         });
       } else if (r.pctAtual > r.pReg.max + 0.0001) {
@@ -2256,8 +2264,8 @@ function renderDiag(s, P) {
           c: r.c,
           tipo: 'Resgatar',
           motivo: `Acima do teto (${pcDG(r.pctAtual)} > ${pcDG(r.pReg.max)})`,
-          deltaMin: vAtual - vMax,
-          deltaAlvo: vAtual - vAlvo,
+          deltaMin: subPrecisa(vAtual, vMax),
+          deltaAlvo: subPrecisa(vAtual, vAlvo),
           cls: 'st-er'
         });
       }
@@ -2316,15 +2324,15 @@ function renderDiag(s, P) {
       let gapTipo = 'Enquadrado';
       let gapCls = 'st-ok';
       if (r.pctAtual > r.pReg.max + 0.0001) {
-        gapPct = r.pctAtual - r.pReg.max;
+        gapPct = subPrecisa(r.pctAtual, r.pReg.max);
         gapTipo = 'Excesso de Risco';
         gapCls = 'st-er';
       } else if (r.pctAtual < r.pReg.min - 0.0001) {
-        gapPct = r.pctAtual - r.pReg.min;
+        gapPct = subPrecisa(r.pctAtual, r.pReg.min);
         gapTipo = 'Déficit de Alocação';
         gapCls = 'st-al';
       }
-      const gapValor = gapPct * total;
+      const gapValor = multPrecisa(gapPct, total);
       return { ...r, gapPct, gapValor, gapTipo, gapCls };
     });
 
@@ -2360,7 +2368,7 @@ function renderDiag(s, P) {
     // Muitos ativos: duas páginas, equilibrando o número de linhas (como no relatório do escritório)
     const linhasDe = c => c.itens.length + 3;
     const grupos = [[], []], soma = [0, 0];
-    if (classes.reduce((a, c) => a + linhasDe(c), 0) > 30) for (const c of classes) { const g = soma[0] <= soma[1] ? 0 : 1; grupos[g].push(c); soma[g] += linhasDe(c); }
+    if (somaLista(classes, c => linhasDe(c)) > 30) for (const c of classes) { const g = soma[0] <= soma[1] ? 0 : 1; grupos[g].push(c); soma[g] += linhasDe(c); }
     else grupos[0] = classes;
     const nomesCl = cs => { const n = cs.map(c => CLASSES_EST[c.k].split(' (')[0]); return n.length > 1 ? n.slice(0, -1).join(', ') + ' e ' + n.at(-1) : n[0]; };
     const textos = [];
@@ -2374,7 +2382,7 @@ function renderDiag(s, P) {
   grupo('gestoras', 'Casas gestoras, emissores e FGC');
   {
     const ges = agruparDG(L.filter(x => !x.direto), x => x.ge), emi = agruparDG(L.filter(x => x.direto), x => x.ge);
-    const vG = ges.reduce((a, g) => a + g.v, 0), vE = emi.reduce((a, g) => a + g.v, 0);
+    const vG = somaLista(ges, g => g.v), vE = somaLista(emi, g => g.v);
     const tabG = ges.length ? tabelaDG([
       { rot: 'Casa gestora', w: '28%', l: 1, f: g => `<span class="nm">${esc(g.k)}</span>` }, { rot: 'Veículos', w: '38%', l: 1, cls: 'ativos', f: g => listaNomes(g.itens, 2) },
       { rot: 'Valor (R$)', w: '20%', f: g => rsDG(g.v) }, { rot: '% cart.', w: '14%', f: g => pcT(g.v) },
@@ -2391,17 +2399,17 @@ function renderDiag(s, P) {
     const grupos = ges.filter(g => emi.some(e => norm(e.k) === norm(g.k)));
     for (const g of grupos) {
       const e = emi.find(e => norm(e.k) === norm(g.k));
-      const prevG = g.itens.filter(x => x.prev && x.cp === 'Sob').reduce((a, x) => a + x.v, 0);
-      textos.push(`O grupo ${esc(g.k)} responde por ${rsDG(g.v + e.v)} (${pcT(g.v + e.v)}) quando se junta a gestão de veículos (${rsDG(g.v)}) ao risco de emissor (${rsDG(e.v)}).${prevG ? ` Desse valor, ${rsDG(prevG)} são previdência em Tesouro Selic, com risco soberano e não do banco.` : ''}`);
+      const prevG = somaLista(g.itens.filter(x => x.prev && x.cp === 'Sob'), x => x.v);
+      textos.push(`O grupo ${esc(g.k)} responde por ${rsDG(somaPrecisa(g.v, e.v))} (${pcT(somaPrecisa(g.v, e.v))}) quando se junta a gestão de veículos (${rsDG(g.v)}) ao risco de emissor (${rsDG(e.v)}).${prevG ? ` Desse valor, ${rsDG(prevG)} são previdência em Tesouro Selic, com risco soberano e não do banco.` : ''}`);
     }
     if (fgc.length) {
-      const linhas = fgc.map(g => { const [em, tit] = g.k.split('|'); const cob = Math.min(g.v, 250000); return { em, tit, v: g.v, cob, acima: g.v - cob }; });
-      const cobT = linhas.reduce((a, l) => a + l.cob, 0), acimaT = linhas.reduce((a, l) => a + l.acima, 0);
+      const linhas = fgc.map(g => { const [em, tit] = g.k.split('|'); const cob = Math.min(g.v, 250000); return { em, tit, v: g.v, cob, acima: subPrecisa(g.v, cob) }; });
+      const cobT = somaLista(linhas, l => l.cob), acimaT = somaLista(linhas, l => l.acima);
       corpo += `<div class="box-k bloco-dg">Cobertura do FGC <span class="bk-x">limite de R$ 250 mil por CPF/CNPJ e por instituição</span></div>` + tabelaDG([
         { rot: 'Emissor', w: '26%', l: 1, f: l => `<span class="nm">${esc(l.em)}</span>` }, { rot: 'Titular', w: '20%', l: 1, cls: 'ativos', f: l => esc(multi ? curto(l.tit) : '—') },
         { rot: 'Posição (R$)', w: '18%', f: l => rsDG(l.v) }, { rot: 'Coberto (R$)', w: '18%', f: l => rsDG(l.cob) },
         { rot: 'Acima do limite (R$)', w: '18%', f: l => l.acima > 0.004 ? `<span class="al">${rsDG(l.acima)}</span>` : '—' },
-      ], linhas, ['TOTAL', '', rsDG(cobT + acimaT), rsDG(cobT), acimaT > 0.004 ? rsDG(acimaT) : '—']);
+      ], linhas, ['TOTAL', '', rsDG(somaPrecisa(cobT, acimaT)), rsDG(cobT), acimaT > 0.004 ? rsDG(acimaT) : '—']);
       const acimaEm = linhas.filter(l => l.acima > 0.004);
       textos.push(acimaEm.length ? `${rsDG(acimaT)} (${pcT(acimaT)}) estão acima do limite do FGC: ${acimaEm.map(l => `${esc(l.em)} (${rsDG(l.acima)})`).join(', ')}. Esse valor carrega o risco de crédito do banco emissor.` : 'Todas as posições cobertas pelo FGC estão dentro do limite de R$ 250 mil por emissor e por titular.');
     }
@@ -2415,7 +2423,7 @@ function renderDiag(s, P) {
   /* 05 — Horizonte de prazo: resumo, curto e médio lado a lado, matriz; longo prazo em página própria */
   grupo('horizonte', 'Horizonte de prazo', false);
   {
-    const hs = ['C', 'M', 'L'].map(k => ({ k, itens: L.filter(x => x.prazo === k).sort((a, b) => b.v - a.v) })).map(h => ({ ...h, v: h.itens.reduce((a, x) => a + x.v, 0) }));
+    const hs = ['C', 'M', 'L'].map(k => ({ k, itens: L.filter(x => x.prazo === k).sort((a, b) => b.v - a.v) })).map(h => ({ ...h, v: somaLista(h.itens, x => x.v) }));
     const resumo = tabelaDG([
       { rot: 'Horizonte', w: '22%', l: 1, f: h => `<span class="nm">${HORIZONTES[h.k][0]}</span>` }, { rot: 'Definição', w: '26%', l: 1, cls: 'ativos', f: h => HORIZONTES[h.k][1] },
       { rot: 'Valor (R$)', w: '22%', f: h => rsDG(h.v) }, { rot: '% carteira', w: '16%', f: h => pcT(h.v) }, { rot: 'Nº', w: '14%', f: h => h.itens.length },
@@ -2429,7 +2437,7 @@ function renderDiag(s, P) {
       return `<div class="cbloco"><div class="cb-head" style="background:${['#0A1F44', '#1F4E87', '#2E6FB7'][i]}"><span class="cb-nome">${HORIZONTES[h.k][0]}</span><span class="cb-val">${rsDG(h.v)}</span><span class="cb-pct">${HORIZONTES[h.k][1]} • ${pcT(h.v)} da carteira • ${nAtivos(h.itens.length)}</span></div>${tabelaDG(cols, h.itens)}</div>`;
     };
     const curtoMedio = hs.slice(0, 2).map((h, i) => h.itens.length ? `<div>${bloco(h, i)}</div>` : '').join('');
-    const vH = (c, k) => c.itens.filter(x => x.prazo === k).reduce((a, x) => a + x.v, 0);
+    const vH = (c, k) => somaLista(c.itens.filter(x => x.prazo === k), x => x.v);
     const matriz = tabelaDG([
       { rot: 'Classe estratégica', w: '22%', l: 1, f: c => `${sw(c.k)}<span class="nm">${esc(CLASSES_EST[c.k])}</span>` },
       ...['C', 'M', 'L'].flatMap(k => [
@@ -2440,7 +2448,7 @@ function renderDiag(s, P) {
     ], classes, ['TOTAL', ...hs.flatMap(h => [rsDG(h.v), pcT(h.v)]), rsDG(total)]);
     const hMax = [...hs].sort((a, b) => b.v - a.v)[0];
     const prox = L.filter(x => x.anos !== null && x.anos >= 0 && x.anos <= 1 && x.direto);
-    const vProx = prox.reduce((a, x) => a + x.v, 0);
+    const vProx = somaLista(prox, x => x.v);
     const textos = [
       `O ${HORIZONTES[hMax.k][0].toLowerCase()} é o maior bloco: ${rsDG(hMax.v)} (${pcT(hMax.v)}).`,
       vProx > 0 ? `Evento de realocação próximo: ${rsDG(vProx)} (${pcT(vProx)}) vencem nos próximos 12 meses (${[...new Set(prox.map(x => esc(x.nome)))].slice(0, 4).join(', ')}).` : '',
@@ -2455,7 +2463,7 @@ function renderDiag(s, P) {
     // Valores futuros a receber (proventos, amortizações, liquidações), quando houver
     const aReceber = L.filter(x => x.p.receber).sort((a, b) => (a.p.vencimento || 0) - (b.p.vencimento || 0));
     if (aReceber.length) {
-      const vR = aReceber.reduce((a, x) => a + x.v, 0);
+      const vR = somaLista(aReceber, x => x.v);
       corpo += `<div class="box-k bloco-dg">Valores futuros a receber <span class="bk-x">${rsDG(vR)} • ${pcT(vR)} da carteira</span></div>` + tabelaDG([
         { rot: 'Descrição', w: '46%', l: 1, f: x => `<span class="nm">${esc(x.p.nomeAtivo)}</span>` }, ...colTI,
         { rot: 'Previsão', w: '14%', f: x => x.p.vencimento ? dataBR(x.p.vencimento) : '—' }, { rot: 'Valor (R$)', w: '18%', f: x => rsDG(x.v) }, { rot: '% cart.', w: '10%', f: x => pcT(x.v) },
@@ -2479,7 +2487,7 @@ function renderDiag(s, P) {
       { rot: '% carteira', w: '12%', f: j => pcT(j.v) }, { rot: 'Composição', w: '46%', l: 1, cls: 'ativos', f: j => listaNomes(j.itens) },
     ], jan, ['TOTAL', rsDG(total), '100,00%', '']);
     const venc = L.filter(x => x.direto && x.p.vencimento instanceof Date && x.classe !== 'Caixa').sort((a, b) => a.p.vencimento - b.p.vencimento);
-    const vV = venc.reduce((a, x) => a + x.v, 0);
+    const vV = somaLista(venc, x => x.v);
     if (venc.length) {
       const anos = venc.map(x => x.p.vencimento.getFullYear());
       corpo += `<div class="box-k bloco-dg">Papéis com vencimento definido</div>` + tabelaDG([
@@ -2487,7 +2495,7 @@ function renderDiag(s, P) {
         { rot: 'Vencimento', w: '10%', f: x => x.p.vencimento.getFullYear() }, { rot: 'Valor (R$)', w: '16%', f: x => rsDG(x.v) }, { rot: '% cart.', w: '8%', f: x => pcT(x.v) },
       ], venc, ['COM VENCIMENTO DEFINIDO', ...(multi ? [''] : []), `${venc.length} ${venc.length === 1 ? 'papel' : 'papéis'}`, Math.min(...anos) === Math.max(...anos) ? Math.min(...anos) : `${Math.min(...anos)}–${Math.max(...anos)}`, rsDG(vV), pcT(vV)]);
     }
-    const vJ = ks => jan.filter(j => ks.includes(j.k)).reduce((a, j) => a + j.v, 0);
+    const vJ = ks => somaLista(jan.filter(j => ks.includes(j.k)), j => j.v);
     const dia = vJ(['dia']), bolsa = vJ(['bolsa']), prev = vJ(['prev']), cot = vJ(['cot']), ateV = vJ(['venc']);
     const temLiq = [
       `Somando liquidez diária e ativos listados em bolsa, ${rsDG(dia + bolsa)} (${pcT(dia + bolsa)}) viram caixa em até cinco dias úteis.`,
@@ -2508,10 +2516,10 @@ function renderDiag(s, P) {
     const off = L.filter(x => x.classe === 'Intl' && x.p.usd);
     if (off.length) {
       grupo('offshore', 'Offshore', false);
-      const vOff = off.reduce((a, x) => a + x.v, 0), usdOff = off.reduce((a, x) => a + (x.p.usd || 0), 0);
+      const vOff = somaLista(off, x => x.v), usdOff = somaLista(off, x => x.p.usd);
       const cambios = [...new Set(off.map(x => x.p.cambio).filter(Boolean))];
       const tipos = agruparDG(off, x => x.p.subclasse || 'Outros');
-      const usdT = g => g.itens.reduce((a, x) => a + (x.p.usd || 0), 0);
+      const usdT = g => somaLista(g.itens, x => x.p.usd);
       const us$ = v => 'US$ ' + num(v);
       let corpo = `<div class="kpis-dg">${kpiDG('Offshore em dólar', us$(usdOff), `${off.length} ${off.length === 1 ? 'ativo' : 'ativos'} • ${[...new Set(off.map(x => x.p.instituicao))].join(', ')}`, 'main')}
         ${kpiDG('Offshore em reais', rsDG(vOff), cambios.length ? `câmbio R$ ${cambios.map(c => num(c, 4)).join(' / ')} por US$` : '')}
@@ -2824,7 +2832,7 @@ function simular() {
   const contas = unidades('cliente');
   const info = infoAtivo();
   const posAtual = new Map(), sub = new Map(), cla = new Map();
-  const soma = (m, p) => m.set(p.clienteId, (m.get(p.clienteId) || 0) + valor(p));
+  const soma = (m, p) => m.set(p.clienteId, somaPrecisa(m.get(p.clienteId), valor(p)));
   for (const p of info.doAtivo) soma(posAtual, p);
   if (info.existe) {
     for (const p of S.posicoes) {
@@ -2834,8 +2842,8 @@ function simular() {
   }
   let linhas = [...contas.values()].map(c => {
     const atual = posAtual.get(c.key) || 0;
-    const valorAlvo = c.pl * S.alvo;
-    const dif = valorAlvo - atual;
+    const valorAlvo = multPrecisa(c.pl, S.alvo);
+    const dif = subPrecisa(valorAlvo, atual);
     const aAlocar = dif >= S.minimo && dif > 0 ? dif : 0;
     let sit;
     if (dif <= 0) sit = ['neutro', 'Já no alvo ou acima'];
@@ -2843,9 +2851,9 @@ function simular() {
     else if (aAlocar > c.caixa) sit = ['alerta', 'Caixa insuficiente'];
     else sit = ['ok', 'Pode alocar'];
     return {
-      key: c.key, u: c, contasTxt: c.contas.join(', '), nome: c.nome, pl: c.pl, caixa: c.caixa, pCaixa: c.caixa / c.pl, atual, pAtual: atual / c.pl,
-      pSub: (sub.get(c.key) || 0) / c.pl, pClasse: (cla.get(c.key) || 0) / c.pl,
-      valorAlvo, aAlocar, pDepois: (atual + aAlocar) / c.pl, sitTipo: sit[0], situacao: sit[1],
+      key: c.key, u: c, contasTxt: c.contas.join(', '), nome: c.nome, pl: c.pl, caixa: c.caixa, pCaixa: divPrecisa(c.caixa, c.pl), atual, pAtual: divPrecisa(atual, c.pl),
+      pSub: divPrecisa(sub.get(c.key) || 0, c.pl), pClasse: divPrecisa(cla.get(c.key) || 0, c.pl),
+      valorAlvo, aAlocar, pDepois: divPrecisa(somaPrecisa(atual, aAlocar), c.pl), sitTipo: sit[0], situacao: sit[1],
     };
   });
   if (S.publico === 'tem') linhas = linhas.filter(l => l.atual > 0);
@@ -2861,7 +2869,7 @@ function renderAtivo() {
   for (const p of inv) {
     let a = porAtivo.get(p.nomeAtivo);
     if (!a) porAtivo.set(p.nomeAtivo, a = { nome: p.nomeAtivo, classe: p.classe, v: 0, contas: new Set() });
-    a.v += valor(p); a.contas.add(p.clienteId);
+    a.v = somaPrecisa(a.v, valor(p)); a.contas.add(p.clienteId);
   }
   const ativos = [...porAtivo.values()];
   if (!S.ativo) S.ativo = ativos.sort((a, b) => b.v - a.v)[0]?.nome || '';
@@ -2889,7 +2897,7 @@ function renderAtivo() {
     $('#kpi-ativo').innerHTML = R ? kpi('Total selecionado na base', brlCurto(R.vSel), `${pct(R.mediaSel, 2)} do patrimônio da base (média da carteira)`, brl(R.vSel)) +
       kpi('Clientes com posição', `${R.linhas.length} de ${R.nClientes}`, 'em pelo menos um dos ativos') +
       kpi('Ativos selecionados', inteiro(S.ativosSel.length)) +
-      kpi('Peso médio de quem tem', R.linhas.length ? pct(R.linhas.reduce((a, l) => a + l.pTotal, 0) / R.linhas.length, 2) : '–', R.linhas.length ? `maior: ${pct(Math.max(...R.linhas.map(l => l.pTotal)), 2)}` : '') : '';
+      kpi('Peso médio de quem tem', R.linhas.length ? pct(divPrecisa(somaLista(R.linhas, l => l.pTotal), R.linhas.length), 2) : '–', R.linhas.length ? `maior: ${pct(Math.max(...R.linhas.map(l => l.pTotal)), 2)}` : '') : '';
     return;
   }
 
@@ -2898,20 +2906,20 @@ function renderAtivo() {
     ? `<span class="chip">Classe <b>${esc(info.classe)}</b></span><span class="chip">Subclasse <b>${esc(info.subclasse)}</b></span><span class="chip">Estratégia <b>${esc(info.estrategia)}</b></span>`
     : `<span class="chip"><b>Ativo novo</b>: nenhum cliente tem posição. A alocação é calculada a partir do zero.</span>`;
 
-  const vTot = [...posAtual.values()].reduce((a, b) => a + b, 0);
-  const pesos = [...posAtual.entries()].map(([c, v]) => v / contas.get(c).pl);
+  const vTot = somaLista([...posAtual.values()]);
+  const pesos = [...posAtual.entries()].map(([c, v]) => divPrecisa(v, contas.get(c)?.pl || 1));
   $('#kpi-ativo').innerHTML =
-    kpi('Total na base', brlCurto(vTot), `${pct(vTot / total, 2)} do patrimônio da base`, brl(vTot)) +
+    kpi('Total na base', brlCurto(vTot), `${pct(divPrecisa(vTot, total), 2)} do patrimônio da base`, brl(vTot)) +
     kpi('Clientes com posição', `${posAtual.size} de ${contas.size}`) +
-    kpi('Peso médio (quem tem)', pesos.length ? pct(pesos.reduce((a, b) => a + b, 0) / pesos.length, 2) : '–') +
+    kpi('Peso médio (quem tem)', pesos.length ? pct(divPrecisa(somaLista(pesos), pesos.length), 2) : '–') +
     kpi('Maior peso', pesos.length ? pct(Math.max(...pesos), 2) : '–');
 
-  const aAlocar = linhas.reduce((a, l) => a + l.aAlocar, 0);
+  const aAlocar = somaLista(linhas, l => l.aAlocar);
   const semCaixa = linhas.filter(l => l.sitTipo === 'alerta');
   $('#kpi-sim').innerHTML =
     kpi('Total a alocar', brlCurto(aAlocar), '', brl(aAlocar)) +
     kpi('Clientes que recebem', inteiro(linhas.filter(l => l.aAlocar > 0).length), `de ${linhas.length} no filtro`) +
-    kpi('Com caixa insuficiente', inteiro(semCaixa.length), semCaixa.length ? `faltam ${brlCurto(semCaixa.reduce((a, l) => a + l.aAlocar - l.caixa, 0))} de caixa` : '');
+    kpi('Com caixa insuficiente', inteiro(semCaixa.length), semCaixa.length ? `faltam ${brlCurto(somaLista(semCaixa, l => subPrecisa(l.aAlocar, l.caixa)))} de caixa` : '');
 
   // Escalas para barras e calor
   const maxAtivo = Math.max(S.alvo, ...linhas.map(l => Math.max(l.pAtual, l.pDepois))) * 1.1 || 1;
@@ -2943,19 +2951,19 @@ function posicaoAtivos(nomes) {
   const ativos = nomes.map(nome => {
     const ps = S.posicoes.filter(p => p.nomeAtivo === nome);
     const porCli = new Map();
-    for (const p of ps) porCli.set(p.clienteId, (porCli.get(p.clienteId) || 0) + valor(p));
-    const v = [...porCli.values()].reduce((a, b) => a + b, 0);
-    const pesos = [...porCli.entries()].map(([k, x]) => x / (us.get(k)?.pl || 1));
-    const clientes = [...porCli.entries()].map(([k, x]) => ({ nome: us.get(k)?.nome || k, p: x / (us.get(k)?.pl || 1) }));
-    return { nome, classe: ps[0]?.classe || '–', subclasse: ps[0]?.subclasse || '–', porCli, clientes, v, media: v / totalBase, nCli: porCli.size,
-      pesoMedio: pesos.length ? pesos.reduce((a, b) => a + b, 0) / pesos.length : 0, maior: pesos.length ? Math.max(...pesos) : 0,
+    for (const p of ps) porCli.set(p.clienteId, somaPrecisa(porCli.get(p.clienteId), valor(p)));
+    const v = somaLista([...porCli.values()]);
+    const pesos = [...porCli.entries()].map(([k, x]) => divPrecisa(x, us.get(k)?.pl || 1));
+    const clientes = [...porCli.entries()].map(([k, x]) => ({ nome: us.get(k)?.nome || k, p: divPrecisa(x, us.get(k)?.pl || 1) }));
+    return { nome, classe: ps[0]?.classe || '–', subclasse: ps[0]?.subclasse || '–', porCli, clientes, v, media: divPrecisa(v, totalBase), nCli: porCli.size,
+      pesoMedio: pesos.length ? divPrecisa(somaLista(pesos), pesos.length) : 0, maior: pesos.length ? Math.max(...pesos) : 0,
       maiorNome: clientes.length ? clientes.reduce((a, c) => c.p > a.p ? c : a).nome : '' };
   });
-  const vSel = ativos.reduce((a, x) => a + x.v, 0), mediaSel = vSel / totalBase;
+  const vSel = somaLista(ativos, x => x.v), mediaSel = divPrecisa(vSel, totalBase);
   const linhas = [...us.values()].map(u => {
     const l = { key: u.key, u, nome: u.nome, contasTxt: u.contas.join(', '), pl: u.pl, total: 0 };
-    ativos.forEach((a, i) => { const v = a.porCli.get(u.key) || 0; l['v' + i] = v; l['p' + i] = v / u.pl; l.total += v; });
-    l.pTotal = l.total / u.pl; l.dif = l.pTotal - mediaSel;
+    ativos.forEach((a, i) => { const v = a.porCli.get(u.key) || 0; l['v' + i] = v; l['p' + i] = divPrecisa(v, u.pl); l.total = somaPrecisa(l.total, v); });
+    l.pTotal = divPrecisa(l.total, u.pl); l.dif = subPrecisa(l.pTotal, mediaSel);
     return l;
   }).filter(l => l.total > 0.005);
   return { ativos, linhas, vSel, mediaSel, totalBase, nClientes: us.size };
@@ -3003,7 +3011,7 @@ function renderPosicao(nomes) {
   if (varios) cols.push({ k: 'total', rot: 'Total selecionado', n: true, cls: 'col-tot', html: (v, l) => cel(v, l.pTotal) });
   cols.push({ k: 'dif', rot: 'vs. média da carteira', n: true, html: v => difTxt(v) });
   // Linhas de referência no fim: total e média da carteira
-  const ref = `<tr class="tot-cli"><td>Total dos clientes</td><td class="n">${esc(brlCurto(R.linhas.reduce((a, l) => a + l.pl, 0)))}</td>${R.ativos.map(a => `<td class="n">${esc(brl(a.v))}</td>`).join('')}${varios ? `<td class="n">${esc(brl(R.vSel))}</td>` : ''}<td></td></tr>
+  const ref = `<tr class="tot-cli"><td>Total dos clientes</td><td class="n">${esc(brlCurto(somaLista(R.linhas, l => l.pl)))}</td>${R.ativos.map(a => `<td class="n">${esc(brl(a.v))}</td>`).join('')}${varios ? `<td class="n">${esc(brl(R.vSel))}</td>` : ''}<td></td></tr>
     <tr class="media-cart"><td>Média da carteira <small>(peso no patrimônio total da base)</small></td><td class="n">${esc(brlCurto(R.totalBase))}</td>${R.ativos.map(a => `<td class="n">${esc(pct(a.media, 2))}</td>`).join('')}${varios ? `<td class="n">${esc(pct(R.mediaSel, 2))}</td>` : ''}<td></td></tr>`;
   $('#tab-posicao').innerHTML = R.linhas.length
     ? tabela('posicao', cols, R.linhas, { attr: l => attrUnidade(l.u), padrao: { k: varios ? 'total' : 'v0', dir: -1 } }).replace('</tbody>', ref + '</tbody>')
@@ -3055,13 +3063,13 @@ function pdfPosicao() {
   const kpis = kpiDG(varios ? 'Total selecionado na base' : 'Total na base', rsDG(R.vSel), `${pcDG(R.mediaSel)} do patrimônio da base`, 'main') +
     kpiDG('Clientes com posição', `${linhas.length} de ${R.nClientes}`, varios ? 'em pelo menos um dos ativos' : '') +
     kpiDG('Média da carteira', pcDG(R.mediaSel), 'peso no patrimônio total') +
-    kpiDG('Peso médio de quem tem', linhas.length ? pcDG(linhas.reduce((a, l) => a + l.pTotal, 0) / linhas.length) : '–', linhas.length ? `maior: ${pcDG(Math.max(...linhas.map(l => l.pTotal)))}` : '');
+    kpiDG('Peso médio de quem tem', linhas.length ? pcDG(divPrecisa(somaLista(linhas, l => l.pTotal), linhas.length)) : '–', linhas.length ? `maior: ${pcDG(Math.max(...linhas.map(l => l.pTotal)))}` : '');
   const tabResumo = `<div class="box-k bloco-dg">Ativos frente à carteira</div>${visAtivos(R)}`;
   const cols = [{ rot: 'Cliente', w: '20%', l: 1, f: l => `<span class="nm">${esc(l.nome)}</span>` }, { rot: 'Patrimônio (R$)', w: 'auto', f: l => rsDG(l.pl) }];
   R.ativos.forEach((a, i) => cols.push({ rot: `${a.nome} (R$ · %)`, w: 'auto', f: l => l['v' + i] > 0.005 ? `${rsDG(l['v' + i])}<br><small>${pcDG(l['p' + i])}</small>` : '—' }));
   if (varios) cols.push({ rot: 'Total (R$ · %)', w: 'auto', f: l => `<b>${rsDG(l.total)}</b><br><small>${pcDG(l.pTotal)}</small>` });
   cols.push({ rot: 'vs. média', w: '9%', f: l => difTxt(l.dif) });
-  const tot = ['TOTAL DOS CLIENTES', rsDG(linhas.reduce((a, l) => a + l.pl, 0)), ...R.ativos.map(a => rsDG(a.v)), ...(varios ? [rsDG(R.vSel)] : []), ''];
+  const tot = ['TOTAL DOS CLIENTES', rsDG(somaLista(linhas, l => l.pl)), ...R.ativos.map(a => rsDG(a.v)), ...(varios ? [rsDG(R.vSel)] : []), ''];
   const media = ['MÉDIA DA CARTEIRA', rsDG(R.totalBase), ...R.ativos.map(a => pcDG(a.media)), ...(varios ? [pcDG(R.mediaSel)] : []), ''];
   const tabCli = tabelaDG(cols, linhas, tot).replace('</tbody>', `<tr class="total media">${media.map((v, i) => `<td class="${i ? 'num' : 'l'}">${v}</td>`).join('')}</tr></tbody>`);
   const rod = n => `<div class="rod"><span>Confidencial • Uso interno • Média da carteira = peso do ativo no patrimônio total da base</span><span>Propósito Capital • ${n}/2</span></div>`;
@@ -3489,7 +3497,7 @@ function lerSafra(linhas) {
         regs.push({ mercado: cls.classe, sub: cls.sub, ativo: cls.tipo || r.nome, produto: cls.tipo || r.nome, emissor: d.emissor, vencimento: d.venc,
           estrategia: cls.estr, taxaCompra: /cdi/i.test(d.indexador) ? d.pctIdx : d.taxa, quantidade: d.qtd, bruto: d.bruto, liquido: d.liq });
       }
-      const soma = det.reduce((a, d) => a + d.bruto, 0);
+      const soma = somaLista(det, d => d.bruto);
       if (Math.abs(soma - r.bruto) > 1) avisos.push(`${r.nome}: o detalhe soma ${brl(soma)}, mas o resumo mostra ${brl(r.bruto)}.`);
     } else if (fundo) {
       regs.push(registroFundo(r.nome, classificar(r.nome, { categoria: 'fundos' }), { quantidade: fundo.qtd, bruto: fundo.bruto, liquido: fundo.liq }));
@@ -3658,13 +3666,13 @@ function baixarModelo() {
 
 // Se a soma das posições não bater com o total do extrato, a diferença entra como "Outros (não detalhado)"
 function reconciliar(ext) {
-  const soma = ext.regs.reduce((a, r) => a + (r.bruto || 0), 0);
+  const soma = somaLista(ext.regs, r => r.bruto);
   if (ext.total !== null && ext.total !== undefined && Math.abs(soma - ext.total) > 1) {
-    const dif = ext.total - soma;
+    const dif = subPrecisa(ext.total, soma);
     ext.avisos.unshift(`A soma das posições lidas (${brl(soma)}) difere do total do extrato (${brl(ext.total)}). A diferença de ${brl(dif)} entrou como "Outros (não detalhado)".`);
     ext.regs.push({ mercado: 'Outros', sub: 'Outros', ativo: 'Outros (não detalhado)', produto: 'Outros (não detalhado)', estrategia: 'Sem classificação', bruto: dif, liquido: dif });
   }
-  ext.soma = ext.regs.reduce((a, r) => a + (r.bruto || 0), 0);
+  ext.soma = somaLista(ext.regs, r => r.bruto);
   return ext;
 }
 
@@ -3672,6 +3680,9 @@ function reconciliar(ext) {
    Quem mudar o código acrescenta uma entrada no topo (data, autor e o que mudou, em linguagem simples).
    Ao abrir uma versão nova, o B.I. registra a atualização no histórico. */
 const VERSOES_BI = [
+  { versao: '2026.10.14', data: '2026-10-14', autor: 'Gestão de Engenharia + Analista', mudancas: [
+    'Precisão Numérica Financeira Total (BigNumber): Extensão da precisão aritmética matemática para todas as rotinas do sistema (cálculos de tabelas do PDF, horizontes de prazo C/M/L, agregação de contas/clientes/famílias, fatias de roscas e rebalanceamento), eliminando completamente resíduos de ponto flutuante IEEE-754.',
+  ] },
   { versao: '2026.10.10b', data: '2026-10-10', autor: 'Gestão de Engenharia + Analista', mudancas: [
     'Blindagem de Segurança (SRI): Hashes de integridade SHA-384 em scripts de CDN (xlsx, bignumber, pdf.js, tesseract) para neutralizar risco de adulteração de código.',
     'Precisão Numérica Financeira: Integração da biblioteca bignumber.js eliminando resíduos de ponto flutuante IEEE-754 em somas de patrimônio e conversão cambial PTAX.',
@@ -3943,7 +3954,7 @@ function renderExtratosCliente(cts) {
   const linhas = fs.map(f => {
     const regs = f.registros.filter(r => chaves.has(chaveConta(r.conta)));
     const contasF = [...new Set(regs.map(r => r.conta))];
-    const val = regs.reduce((a, r) => a + (numero(S.campoValor === 'bruto' ? r.bruto : r.liquido) || 0), 0);
+    const val = somaLista(regs, r => numero(S.campoValor === 'bruto' ? r.bruto : r.liquido));
     const ehMacro = f.id === 'BTG';
     return `<tr><td><b>${esc(ehMacro ? 'BTG · planilha diária' : f.inst)}</b></td><td>${esc(contasF.join(', '))}</td><td class="sec">${esc(f.arquivo || '–')}</td>
       <td>${esc(f.dataRef || '–')}</td><td>${quando(f.enviadoEm)}</td><td class="n">${brl(val)}</td>
@@ -3981,7 +3992,7 @@ function editarCadastro() {
   const selContas = new Set(contasSel().map(chaveConta));
   const contas = [...new Set(S.posicoes.map(p => p.conta))].map(conta => {
     const cad = cadastroDe(conta), cli = clienteDaConta(conta), p0 = S.posicoes.find(p => p.conta === conta);
-    const pl = S.posicoes.filter(p => p.conta === conta).reduce((a, p) => a + valor(p), 0);
+    const pl = somaLista(S.posicoes.filter(p => p.conta === conta), valor);
     return { conta, planilha: p0?.nome || '', inst: p0?.instituicao || '', pl, cliente: cad?.cliente || '', familia: cad?.familia && norm(cad.familia) !== norm(cad.cliente) ? cad.familia : '', atual: cli?.nome || '' };
   }).sort((a, b) => (selContas.has(chaveConta(b.conta)) - selContas.has(chaveConta(a.conta))) || (a.familia || a.cliente || a.planilha).localeCompare(b.familia || b.cliente || b.planilha, 'pt-BR'));
   const familias = nomesFamilias(), pessoas = [...new Set([...S.clientes.values()].map(c => c.nome).concat(contas.map(c => c.cliente)).filter(Boolean))].sort();
@@ -4068,7 +4079,7 @@ function nomesFamilias() {
 
 function adicionarFonte(f) {
   if (f.id !== 'EXEMPLO') S.fontes.delete('EXEMPLO');
-  f.total = f.registros.reduce((a, r) => a + (numero(r.bruto) || 0), 0);
+  f.total = somaLista(f.registros, r => numero(r.bruto));
   if (f.id !== 'EXEMPLO') {
     f.enviadoEm = new Date().toISOString(); f.enviadoPor = usuario();
     if (f.combinado) { delete f.combinado; S.fontes.set(f.id, f); salvarFontes(); recalcular(); return; }  // já registrado como "Extratos combinados" 
@@ -4158,7 +4169,7 @@ function abrirExtratos() {
     ${btg ? '' : `<p class="sec">Nenhuma planilha do BTG carregada. <button type="button" class="btn-link" id="ext-atualizar">Atualizar com a pasta</button></p>`}
     <input type="search" id="ext-busca" placeholder="Buscar cliente, instituição ou arquivo…" style="width:100%;margin-top:8px">
     ${grupos.size || btg ? `<div class="ext-lista"><table><thead>${cab}</thead><tbody>${linhaBtg}
-      ${[...grupos.entries()].sort((a, b) => a[0].localeCompare(b[0], 'pt-BR')).map(([k, itens]) => `<tr class="ext-cli"><td colspan="7">${esc(k)}<small>${itens.length} ${itens.length === 1 ? 'extrato' : 'extratos'} · ${esc(brl(itens.reduce((a, x) => a + x.f.total, 0)))}</small></td></tr>` + itens.map(x => linha(x, grupos.size && k !== x.pessoa)).join('')).join('')}
+      ${[...grupos.entries()].sort((a, b) => a[0].localeCompare(b[0], 'pt-BR')).map(([k, itens]) => `<tr class="ext-cli"><td colspan="7">${esc(k)}<small>${itens.length} ${itens.length === 1 ? 'extrato' : 'extratos'} · ${esc(brl(somaLista(itens, x => x.f.total)))}</small></td></tr>` + itens.map(x => linha(x, grupos.size && k !== x.pessoa)).join('')).join('')}
     </tbody></table></div>` : '<p class="sec" style="margin-top:10px">Nenhum extrato de outra instituição carregado.</p>'}
     <p class="sec" style="font-size:12px;margin-top:8px">Substituir: anexe o extrato novo da mesma instituição e conta (ex.: Safra de setembro no lugar do de agosto); o anterior sai e fica registrado no histórico.</p>
     <div class="dlg-botoes"><button type="button" class="btn" id="ext-anexar">+ Anexar extrato</button><button value="ok" class="btn btn-pri">Fechar</button></div>
@@ -4524,7 +4535,7 @@ function lerNomad(linhas) {
   if (!regs.length) throw new Error('Não encontrei a tabela de posições da Nomad (Nome, Tipo, Ticker, QTD, Valor unt, Posição, Porcentagem).');
   const avisos = ['Valores em dólar: informe o câmbio (já sugerido pela PTAX do Banco Central).', 'O extrato da Nomad não traz o nome do cliente nem a data da posição.'];
   if (Math.abs(somaPct - 100) > 0.5) avisos.push(`Os percentuais lidos somam ${num(somaPct, 2)}%: pode faltar alguma linha. Confira na tabela.`);
-  return { inst: 'Nomad', conta: '', clienteSugerido: null, data: null, total: null, totalUSD: regs.reduce((a, r) => a + r.usd, 0), moeda: 'USD', regs, avisos, revisar: true };
+  return { inst: 'Nomad', conta: '', clienteSugerido: null, data: null, total: null, totalUSD: somaLista(regs, r => r.usd), moeda: 'USD', regs, avisos, revisar: true };
 }
 
 /* ---------- Foto (OCR no navegador com tesseract.js, com blindagem SRI) ---------- */
@@ -4561,7 +4572,7 @@ function lerRhino(texto) {
       estrategia: /ipca|ipc|igp/.test(t) ? 'Inflação' : /cdi|selic/.test(t) ? 'Pós-fixado' : 'Pré-fixado', taxaTexto: taxa.replace(/\s+/g, ' '), bruto: saldo, liquido });
   });
   if (!regs.length) throw new Error('Não reconheci os blocos do extrato da Rhino na foto. Tente uma foto mais nítida ou preencha pelo Excel padrão.');
-  const somaLiq = regs.reduce((a, r) => a + r.liquido, 0);
+  const somaLiq = somaLista(regs, r => r.liquido);
   if (totalLiq !== null) avisos.unshift(Math.abs(somaLiq - totalLiq) < 0.05 ? `Conferido: os líquidos lidos somam ${brl(somaLiq)}, igual ao total da foto.` : `Os líquidos lidos somam ${brl(somaLiq)}, mas a foto mostra ${brl(totalLiq)}: confira os valores na tabela.`);
   avisos.push('Lido por reconhecimento de texto (foto): confira nome e valores antes de adicionar. Vencimento não aparece no extrato.');
   return { inst: 'Rhino', conta: '', clienteSugerido: null, data: null, total: null, regs, avisos, revisar: true };
@@ -5019,7 +5030,7 @@ function planoPasta(arquivos) {
     porCliente.set(chave, g);
   }
   const grupos = [...porCliente.values()].filter(g => g.itens.length).sort((a, b) => a.pastaCliente.localeCompare(b.pastaCliente, 'pt-BR'));
-  return { macro, nMacros: macros.length, grupos, antigos: grupos.reduce((a, g) => a + g.antigos, 0), ignorados, cadastro: cadastros[0] || null };
+  return { macro, nMacros: macros.length, grupos, antigos: somaLista(grupos, g => g.antigos), ignorados, cadastro: cadastros[0] || null };
 }
 
 // Mostra o que vai ser lido (dá para desmarcar) antes de começar
@@ -5123,7 +5134,7 @@ async function lerPasta(opc = {}) {
       if (!dono || !dono.regs.length) { resultado.push({ st: 'al', nome: x.nome, txt: 'pulado por você' }); continue; }
       if (semConta) lembrarDonoPasta(`${x.chavePasta}|${dono.inst}`, dono.contaFull);
       incluirExtrato(ext, dono);
-      const soma = dono.regs.reduce((a, r) => a + (r.bruto || 0), 0);
+      const soma = somaLista(dono.regs, r => r.bruto);
       resultado.push({ st: 'ok', nome: x.nome, txt: `${nomeProprio(dono.cliente).split(' ')[0]} · ${dono.contaFull} · ${brl(soma)}${semPergunta ? ' · automático' : ' · conferido'}${ext.avisoAuto ? ` (${ext.avisoAuto})` : ''}${ext.data ? ` · posição de ${ext.data}` : ''}` });
     } catch (e) { progresso(''); resultado.push({ st: 'er', nome: x.nome, txt: e.message || String(e) }); }
   }
