@@ -557,6 +557,8 @@ table.conf td:nth-child(4) input { text-align: right; }
   <div id="aviso-carga" class="faixa-exemplo" hidden></div>
   <div id="aviso-antigo" class="faixa-exemplo" hidden></div>
   <div id="aviso-pasta" class="faixa-exemplo" hidden></div>
+  <div id="aviso-cad" class="faixa-exemplo" hidden></div>
+  <input type="file" id="arq-cadastro" accept=".js" hidden>
 
   <!-- Estado inicial -->
   <section id="vazio" class="vazio">
@@ -910,6 +912,7 @@ function montarPosicao(r) {
     bruto, liquido: numero(r.liquido) ?? bruto, ir: numero(r.ir) || 0, iof: numero(r.iof) || 0,
     data: data(r.data), tipoPlano: texto(r.tipoPlano), grupo: texto(r.grupo), instituicao: texto(r.instituicao) || 'BTG',
     usd: numero(r.usd), cambio: numero(r.cambio), cambioData: texto(r.cambioData), taxaTexto: texto(r.taxaTexto),
+    titular: texto(r.titular),  // titular como veio no extrato (ex.: a PJ do cliente)
   };
   p.estrategia = texto(r.estrategia) || ESTRATEGIA_PADRAO[norm(mercado)] || 'Sem classificação';
   p.caixa = norm(mercado) === 'conta corrente';
@@ -1053,7 +1056,8 @@ const nomeProprio = s => String(s ?? '').toLowerCase().replace(/\s+/g, ' ').trim
 function montarClientes(posicoes, exemplo) {
   const cad = new Map();
   if (!exemplo && Array.isArray(window.CADASTRO_CLIENTES)) for (const c of window.CADASTRO_CLIENTES) cad.set(chaveConta(c.conta), c);
-  if (!exemplo) for (const c of S.cadExtra.values()) cad.set(chaveConta(c.conta), c);
+  // Alteração feita no navegador vale por cima do grupos.js, mas mantém a descrição da conta (ex.: "PJ — Holding")
+  if (!exemplo) for (const c of S.cadExtra.values()) { const k = chaveConta(c.conta); cad.set(k, { ...cad.get(k), ...c }); }
   const planilhaTemGrupo = posicoes.some(p => p.grupo);
   // Apelidos por nome (ex.: a holding PJ de um cliente pertence à pessoa física dele)
   const apelidos = exemplo ? [] : (window.APELIDOS_CLIENTES || []);
@@ -1419,7 +1423,8 @@ function renderConta() {
   const sel = $('#sel-conta');
   sel.innerHTML =
     (familias.length ? `<optgroup label="Famílias (consolidado)">` + familias.map(u => `<option value="${esc(u.key)}">${esc(u.nome)} · ${esc(u.sub.replace('família · ', ''))} — ${esc(brlCurto(u.pl))}</option>`).join('') + '</optgroup>' : '') +
-    `<optgroup label="Clientes">` + clientes.map(u => `<option value="${esc(u.key)}">${esc(u.nome)}${u.contas.length > 1 ? ` (${u.contas.length} contas)` : ''} — ${esc(brlCurto(u.pl))}</option>`).join('') + '</optgroup>';
+    `<optgroup label="Clientes">` + clientes.map(u => { const rep = nomeRepetido(u.nome, clientes);
+      return `<option value="${esc(u.key)}">${esc(u.nome)}${rep ? ` · ${esc(rotuloContas(u.contas))}` : u.contas.length > 1 ? ` (${u.contas.length} contas)` : ''} — ${esc(brlCurto(u.pl))}</option>`; }).join('') + '</optgroup>';
   sel.value = S.sel;
 
   const s = selecao();
@@ -2103,7 +2108,26 @@ function renderDiag(s, P) {
                : kpiDG('Exposição internacional', pcT(intl), intl ? `${rsDG(intl)}${usdTot ? ` • US$ ${num(usdTot)} no exterior` : ''}` : 'Carteira 100% Brasil, 100% em reais');
     let corpo = `<div class="kpis-dg">${k}</div>`;
     if (!multiInst) corpo += bl('composicao', 'Composição por classe', true, `<div class="box-k">Composição por classe estratégica</div>${barrasClasse(classes, cor, total, true)}`);
-    if (titulares.length > 2) {
+    if (!multiInst && contas.length > 1) {
+      // Uma instituição com 2+ contas: posição por conta (instituição, conta, titular/descrição, data-base)
+      const porConta = agruparDG(L, x => x.p.conta);
+      // Titular de cada conta: descrição do cadastro (ex.: "PJ — Holding Patrimonial"); PF = nome do cliente;
+      // sem descrição, o nome do titular que veio no extrato (a planilha do BTG só traz o primeiro nome)
+      const titularConta = g => {
+        const p = g.itens[0].p, d = S.descConta?.get(g.k);
+        if (d) return /^(pessoa f|pf$)/i.test(d) ? `${p.clienteNome} — PF` : /^PJ\s*[—-]/i.test(d) ? d.replace(/^PJ\s*[—-]\s*/i, '') + ' — PJ' : d;
+        const t = p.titular || p.nome;
+        return t && !soPrimeiroNome(t) && norm(t) !== norm(p.clienteNome) ? nomeProprio(t) : p.clienteNome;
+      };
+      const dataConta = g => { const dt = g.itens.map(x => x.p.data).filter(Boolean); return dt.length ? dataBR(new Date(Math.max(...dt))) : '—'; };
+      corpo += bl('custodia', 'Posição por conta', true, `<div class="box-k bloco-dg">Posição por conta e instituição</div>` + tabelaDG([
+        { rot: 'Instituição', w: '13%', l: 1, f: g => esc(NOME_INST[g.itens[0].p.instituicao] || g.itens[0].p.instituicao) },
+        { rot: 'Conta', w: '12%', l: 1, f: g => esc(String(g.k).replace(new RegExp('^' + g.itens[0].p.instituicao + '\\s+'), '')) },
+        { rot: 'Titular', w: '33%', l: 1, f: g => `<span class="nm">${esc(titularConta(g))}</span>` },
+        { rot: 'Data-base', w: '11%', l: 1, f: g => dataConta(g) },
+        { rot: 'Valor (R$)', w: '15%', f: g => rsDG(g.v) }, { rot: '% cart.', w: '9%', f: g => pcT(g.v) }, { rot: 'Nº', w: '7%', f: g => g.itens.length },
+      ], porConta, ['TOTAL CONSOLIDADO', `${porConta.length} contas`, '', '', rsDG(total), '100,00%', L.length]));
+    } else if (titulares.length > 2) {
       corpo += `<div class="box-k bloco-dg">Distribuição por ${porFamilia ? 'cliente' : 'conta'}</div>` + tabelaDG([
         { rot: porFamilia ? 'Cliente' : 'Conta', w: '34%', l: 1, f: t => `<span class="nm">${esc(rotTit(t.k))}</span>` },
         { rot: 'Contas', w: '30%', l: 1, cls: 'ativos', f: t => esc([...new Set(t.itens.map(x => x.p.conta))].join(' • ')) },
@@ -3680,6 +3704,33 @@ function reconciliar(ext) {
    Quem mudar o código acrescenta uma entrada no topo (data, autor e o que mudou, em linguagem simples).
    Ao abrir uma versão nova, o B.I. registra a atualização no histórico. */
 const VERSOES_BI = [
+  { versao: '2026.10.14h', data: '2026-10-14', autor: 'Vinicius + Claude', mudancas: [
+    'Versão unificada: as melhorias do Lucas (políticas de investimento, IndexedDB, precisão numérica, SRI) com as de organização de nomes, contas e titulares nos extratos e relatórios.',
+  ] },
+  { versao: '2026.10.14g', data: '2026-10-14', autor: 'Vinicius + Claude', mudancas: [
+    'Extratos de contas diferentes no mesmo banco (ex.: PF e PJ, cada uma só com saldo em conta) não se substituem mais: as duas ficam.',
+  ] },
+  { versao: '2026.10.14f', data: '2026-10-14', autor: 'Vinicius + Claude', mudancas: [
+    'Editar cadastro: coluna "Titular da conta" (ex.: "Pessoa Física" ou "PJ — Holding"), que aparece no quadro de posição por conta do relatório.',
+  ] },
+  { versao: '2026.10.14e', data: '2026-10-14', autor: 'Vinicius + Claude', mudancas: [
+    '"Posição por conta e instituição": coluna Titular com o nome de cada conta (ex.: o cliente — PF e a holding — PJ), pela descrição do cadastro ou pelo titular que veio no extrato.',
+  ] },
+  { versao: '2026.10.14d', data: '2026-10-14', autor: 'Vinicius + Claude', mudancas: [
+    'Diagnóstico e relatório: cliente com duas ou mais contas na mesma instituição ganha o quadro "Posição por conta e instituição" na página 1 (conta, titular, data-base, valor e %), removível na montagem do relatório.',
+  ] },
+  { versao: '2026.10.14c', data: '2026-10-14', autor: 'Vinicius + Claude', mudancas: [
+    'Quando o navegador não tem o cadastro de clientes, aparece um aviso no topo com o botão "Carregar grupos.js": os nomes completos entram na hora.',
+  ] },
+  { versao: '2026.10.14b', data: '2026-10-14', autor: 'Vinicius + Claude', mudancas: [
+    'Clientes com o mesmo primeiro nome (a planilha do BTG só traz o primeiro nome) não se misturam mais: nas listas aparece a conta ao lado do nome.',
+    'Ao anexar um extrato para um cliente que só tem o primeiro nome, o B.I. pede o nome completo.',
+    'Associações antigas guardadas no navegador só com o primeiro nome (que juntavam pessoas diferentes) são descartadas; vale o cadastro (grupos.js).',
+  ] },
+  { versao: '2026.10.14a', data: '2026-10-14', autor: 'Vinicius + Claude', mudancas: [
+    'Extratos: "Substituir" (e "+ Anexar extrato" e "Atualizar com a pasta") abertos dessa janela não faziam nada; agora o arquivo novo entra e substitui o anterior.',
+    'Extratos: a planilha diária do BTG ganhou o botão "Remover".',
+  ] },
   { versao: '2026.10.14', data: '2026-10-14', autor: 'Gestão de Engenharia + Analista', mudancas: [
     'Precisão Numérica Financeira Total (BigNumber): Extensão da precisão aritmética matemática para todas as rotinas do sistema (cálculos de tabelas do PDF, horizontes de prazo C/M/L, agregação de contas/clientes/famílias, fatias de roscas e rebalanceamento), eliminando completamente resíduos de ponto flutuante IEEE-754.',
   ] },
@@ -3881,6 +3932,22 @@ async function atualizarComPasta() {
   } catch (e) { box.textContent = `Não consegui ler a pasta (${e.message || e}). Use "Ler pasta" no topo.`; box.hidden = false; }
 }
 // Os dados voltam do navegador, mas a planilha do BTG não se atualiza sozinha: avisa quando ela não foi carregada hoje
+// Sem cadastro (grupos.js) neste navegador, a planilha do BTG só traz o primeiro nome: avisa e oferece carregar o arquivo
+function avisarCadastro() {
+  const box = $('#aviso-cad');
+  const semCad = !S.exemplo && S.posicoes.length && !(window.CADASTRO_CLIENTES || []).length;
+  box.hidden = !semCad;
+  if (!semCad) return;
+  box.innerHTML = `<b>Nomes completos não carregados:</b> a planilha do BTG só traz o primeiro nome. Carregue o cadastro de clientes (arquivo <b>grupos.js</b>, na pasta B.I do OneDrive) para o B.I. saber quem é quem.
+    <button type="button" class="btn-link" id="btn-cad-arq">Carregar grupos.js</button>`;
+  $('#btn-cad-arq').onclick = () => $('#arq-cadastro').click();
+}
+$('#arq-cadastro').addEventListener('change', async e => {
+  const a = e.target.files[0]; e.target.value = '';
+  if (!a) return;
+  try { const c = await lerCadastroDaPasta(a); registrar('Cadastro carregado', `${a.name} · ${c.clientes.length} contas`); recalcular(); }
+  catch (err) { alert(`Não consegui ler o cadastro (${err.message || err}). Confira se é o grupos.js da pasta B.I.`); }
+});
 function avisarPlanilhaAntiga() {
   const f = S.fontes.get('BTG'), box = $('#aviso-antigo');
   const hoje = new Date().toDateString();
@@ -3976,12 +4043,13 @@ function salvarCadLocal() {
 function associacoesNovas() {
   return [...S.cadExtra.values()].filter(c => {
     const o = (window.CADASTRO_CLIENTES || []).find(x => chaveConta(x.conta) === chaveConta(c.conta));
-    return !o || norm(o.cliente) !== norm(c.cliente) || norm(o.familia || o.cliente) !== norm(c.familia || c.cliente);
+    return !o || norm(o.cliente) !== norm(c.cliente) || norm(o.familia || o.cliente) !== norm(c.familia || c.cliente) || (c.descricao && norm(c.descricao) !== norm(o.descricao || ''));
   });
 }
 // Ao abrir o painel, esquece no navegador as contas que o grupos.js já tem (o arquivo prevalece)
+// e as associações guardadas só com o primeiro nome (ex.: "Fernando"), que juntavam pessoas diferentes
 function limparCadLocal() {
-  const pendentes = new Set(associacoesNovas().map(c => chaveConta(c.conta)));
+  const pendentes = new Set(associacoesNovas().filter(c => !soPrimeiroNome(c.cliente)).map(c => chaveConta(c.conta)));
   for (const k of [...S.cadExtra.keys()]) if (!pendentes.has(k)) S.cadExtra.delete(k);
   salvarCadLocal();
 }
@@ -3993,17 +4061,19 @@ function editarCadastro() {
   const contas = [...new Set(S.posicoes.map(p => p.conta))].map(conta => {
     const cad = cadastroDe(conta), cli = clienteDaConta(conta), p0 = S.posicoes.find(p => p.conta === conta);
     const pl = somaLista(S.posicoes.filter(p => p.conta === conta), valor);
-    return { conta, planilha: p0?.nome || '', inst: p0?.instituicao || '', pl, cliente: cad?.cliente || '', familia: cad?.familia && norm(cad.familia) !== norm(cad.cliente) ? cad.familia : '', atual: cli?.nome || '' };
+    const tit = p0?.titular && !soPrimeiroNome(p0.titular) ? nomeProprio(p0.titular) : '';
+    return { conta, planilha: p0?.nome || '', inst: p0?.instituicao || '', pl, cliente: cad?.cliente || '', familia: cad?.familia && norm(cad.familia) !== norm(cad.cliente) ? cad.familia : '', descricao: cad?.descricao || '', sugestao: tit, atual: cli?.nome || '' };
   }).sort((a, b) => (selContas.has(chaveConta(b.conta)) - selContas.has(chaveConta(a.conta))) || (a.familia || a.cliente || a.planilha).localeCompare(b.familia || b.cliente || b.planilha, 'pt-BR'));
   const familias = nomesFamilias(), pessoas = [...new Set([...S.clientes.values()].map(c => c.nome).concat(contas.map(c => c.cliente)).filter(Boolean))].sort();
   dlg.innerHTML = `<form method="dialog" class="dlg dlg-largo">
     <h2>Editar cadastro de clientes</h2>
     <p class="sec"><b>Mesma pessoa com duas contas:</b> escreva o mesmo nome em "Cliente". <b>Casal ou família</b> (ex.: marido e esposa, cada um com a sua conta): nomes diferentes em "Cliente" e o <b>mesmo nome em "Família"</b>. Conta sem cliente preenchido continua separada, com o nome da planilha.</p>
     <input type="search" id="cad-busca" placeholder="Buscar conta, nome ou família…" style="width:100%;margin-top:8px">
-    <div class="cad-lista"><table><thead><tr><th>Conta</th><th>Na planilha</th><th class="n">Patrimônio</th><th>Cliente (nome completo)</th><th>Família (opcional)</th></tr></thead><tbody>
+    <div class="cad-lista"><table><thead><tr><th>Conta</th><th>Na planilha</th><th class="n">Patrimônio</th><th>Cliente (nome completo)</th><th>Família (opcional)</th><th title="Aparece no relatório, no quadro de posição por conta">Titular da conta (opcional)</th></tr></thead><tbody>
       ${contas.map((c, i) => `<tr data-i="${i}" class="${selContas.has(chaveConta(c.conta)) ? 'cad-sel' : ''}"><td><b>${esc(c.conta)}</b></td><td class="sec">${esc(c.planilha)}${c.inst && c.inst !== 'BTG' ? ` · ${esc(c.inst)}` : ''}</td><td class="n">${esc(brlCurto(c.pl))}</td>
         <td><input type="text" class="cad-cli" list="cad-pessoas" value="${esc(c.cliente)}" placeholder="${esc(c.atual)}"></td>
-        <td><input type="text" class="cad-fam" list="cad-familias" value="${esc(c.familia)}" placeholder="—"></td></tr>`).join('')}
+        <td><input type="text" class="cad-fam" list="cad-familias" value="${esc(c.familia)}" placeholder="—"></td>
+        <td><input type="text" class="cad-desc" value="${esc(c.descricao)}" placeholder="${esc(c.sugestao ? c.sugestao + ' — PJ' : 'ex.: Pessoa Física; PJ — Holding')}"></td></tr>`).join('')}
     </tbody></table></div>
     <datalist id="cad-pessoas">${pessoas.map(n => `<option value="${esc(n)}">`).join('')}</datalist>
     <datalist id="cad-familias">${familias.map(n => `<option value="${esc(n)}">`).join('')}</datalist>
@@ -4012,17 +4082,17 @@ function editarCadastro() {
   </form>`;
   const corpo = dlg.querySelector('tbody');
   corpo.addEventListener('input', e => { const tr = e.target.closest('tr'); const c = contas[+tr.dataset.i];
-    tr.classList.toggle('cad-mudou', tr.querySelector('.cad-cli').value.trim() !== c.cliente || tr.querySelector('.cad-fam').value.trim() !== c.familia); });
+    tr.classList.toggle('cad-mudou', tr.querySelector('.cad-cli').value.trim() !== c.cliente || tr.querySelector('.cad-fam').value.trim() !== c.familia || tr.querySelector('.cad-desc').value.trim() !== c.descricao); });
   $('#cad-busca').addEventListener('input', e => { const b = norm(e.target.value); corpo.querySelectorAll('tr').forEach(tr => { tr.hidden = b && !norm(tr.textContent + ' ' + [...tr.querySelectorAll('input')].map(i => i.value).join(' ')).includes(b); }); });
   dlg.onclose = () => {
     if (dlg.returnValue !== 'ok') return;
     const mud = [];
     corpo.querySelectorAll('tr').forEach(tr => {
-      const c = contas[+tr.dataset.i], cli = tr.querySelector('.cad-cli').value.trim(), fam = tr.querySelector('.cad-fam').value.trim();
-      if (cli === c.cliente && fam === c.familia) return;
+      const c = contas[+tr.dataset.i], cli = tr.querySelector('.cad-cli').value.trim(), fam = tr.querySelector('.cad-fam').value.trim(), desc = tr.querySelector('.cad-desc').value.trim();
+      if (cli === c.cliente && fam === c.familia && desc === c.descricao) return;
       if (!cli) { S.cadExtra.delete(chaveConta(c.conta)); mud.push(`${c.conta} → sem cadastro`); return; }
-      S.cadExtra.set(chaveConta(c.conta), { conta: c.conta, cliente: cli, familia: fam || cli });
-      mud.push(`${c.conta} → ${cli}${fam ? ` (família ${fam})` : ''}`);
+      S.cadExtra.set(chaveConta(c.conta), { conta: c.conta, cliente: cli, familia: fam || cli, ...(desc ? { descricao: desc } : {}) });
+      mud.push(`${c.conta} → ${cli}${fam ? ` (família ${fam})` : ''}${desc ? ` · titular: ${desc}` : ''}`);
     });
     if (!mud.length) return;
     salvarCadLocal();
@@ -4065,6 +4135,11 @@ function salvarNovos() {
   dlg.showModal();
 }
 
+// Nomes repetidos (a planilha do BTG só traz o primeiro nome): nas listas aparece a conta para diferenciar
+const nomeRepetido = (nome, lista) => lista.filter(x => norm(x.nome) === norm(nome)).length > 1;
+const rotuloContas = contas => (contas.length > 1 ? 'contas ' : 'conta ') + contas.map(c => String(c).replace(/^0+(?=\d)/, '')).join(', ');
+// Nome com uma palavra só (ex.: "Fernando", como vem na planilha): não serve para identificar uma pessoa
+const soPrimeiroNome = nome => norm(nome).trim().split(/\s+/).filter(Boolean).length < 2;
 function cadastroDe(conta) {
   const k = chaveConta(conta);
   return S.cadExtra.get(k) || (window.CADASTRO_CLIENTES || []).find(c => chaveConta(c.conta) === k) || null;
@@ -4122,6 +4197,7 @@ function recalcular() {
   $('#abas').hidden = false;
   $('#faixa-exemplo').hidden = !exemplo;
   renderFontes();
+  avisarCadastro();
   irPara(primeira ? 'carteira' : S.aba, primeira);
 }
 // Barra do topo: de quando são os dados (planilha do BTG) e o botão "Extratos", que abre a lista por cliente
@@ -4162,7 +4238,7 @@ function abrirExtratos() {
   // Planilha diária do BTG: primeira linha da tabela, em destaque
   const linhaBtg = btg ? `<tr class="ext-cli"><td colspan="7">Planilha diária do BTG<small>base de todos os clientes · ${esc(btg.rotulo || '')} · ${esc(brl(btg.total))}</small></td></tr>
     <tr class="ext-btg"><td><b>BTG</b></td><td>${esc(btg.rotulo || '')}</td><td class="sec">${esc(btg.arquivo || '–')}</td><td>${esc(btg.dataRef || '–')}</td><td>${esc(quando(btg))}</td><td class="n">${esc(brl(btg.total))}</td>
-    <td class="n" style="white-space:nowrap"><button type="button" class="btn-link" id="ext-atualizar">Atualizar com a pasta</button> · <button type="button" class="btn-link" data-subst="BTG">Substituir</button></td></tr>` : '';
+    <td class="n" style="white-space:nowrap"><button type="button" class="btn-link" id="ext-atualizar">Atualizar com a pasta</button> · <button type="button" class="btn-link" data-subst="BTG">Substituir</button> · <button type="button" class="btn-link" data-rm="BTG">Remover</button></td></tr>` : '';
   dlg.innerHTML = `<form method="dialog" class="dlg dlg-largo">
     <h2>Extratos carregados</h2>
     <p class="sec"><b>Posição de</b> = data das posições dentro do arquivo (a planilha do BTG é sempre do dia anterior). <b>Carregado em</b> = quando o arquivo entrou no B.I.</p>
@@ -4183,13 +4259,16 @@ function abrirExtratos() {
     });
     dlg.querySelectorAll('.ext-lista tr.ext-cli').forEach(tr => { let n = tr.nextElementSibling, algum = false; while (n && !n.classList.contains('ext-cli')) { if (!n.hidden) algum = true; n = n.nextElementSibling; } tr.hidden = !algum; });
   });
+  const fechar = async () => dlg.close();
   dlg.querySelector('tbody')?.addEventListener('click', async e => {
     const s = e.target.closest('[data-subst]'), r = e.target.closest('[data-rm]');
-    if (s) { dlg.close(); await anexarExtrato({ inst: s.dataset.subst }); return; }
-    if (r && confirm('Remover este extrato do painel? (O arquivo na pasta não é apagado.)')) { dlg.close(); removerFonte(r.dataset.rm); }
+    if (s) { await fechar(); await anexarExtrato({ inst: s.dataset.subst }); return; }
+    const msg = r?.dataset.rm === 'BTG' ? 'Remover a planilha diária do BTG do painel? (O arquivo na pasta não é apagado.)' : 'Remover este extrato do painel? (O arquivo na pasta não é apagado.)';
+    if (r && confirm(msg)) { await fechar(); removerFonte(r.dataset.rm); }
   });
-  $('#ext-anexar').onclick = async () => { dlg.close(); await anexarExtrato(); };
-  $('#ext-atualizar').onclick = async () => { dlg.close(); await atualizarComPasta(); };
+  $('#ext-anexar').onclick = async () => { await fechar(); await anexarExtrato(); };
+  $('#ext-atualizar').onclick = async () => { await fechar(); await atualizarComPasta(); };
+  dlg.onclose = null;
   dlg.showModal();
 }
 
@@ -4730,7 +4809,9 @@ function perguntarDono(ext) {
       <fieldset class="dlg-dono">
         <legend>De quem é este extrato?</legend>
         ${clientes.length ? `<label class="opcao"><input type="radio" name="modo" value="existente" ${sugerido ? 'checked' : ''}> Cliente que já está no painel
-          <select name="cliente">${clientes.map(c => `<option value="${esc(c.id)}" ${sugerido && sugerido.id === c.id ? 'selected' : ''}>${esc(c.nome)}${c.familiaNome && c.familiaNome !== c.nome ? ` · ${esc(c.familiaNome)}` : ''}</option>`).join('')}</select></label>` : ''}
+          <select name="cliente">${clientes.map(c => `<option value="${esc(c.id)}" ${sugerido && sugerido.id === c.id ? 'selected' : ''}>${esc(c.nome)}${c.familiaNome && c.familiaNome !== c.nome ? ` · ${esc(c.familiaNome)}` : ''}${nomeRepetido(c.nome, clientes) || soPrimeiroNome(c.nome) ? ` · ${esc(rotuloContas(c.contas))}` : ''}</option>`).join('')}</select></label>
+        <label class="opcao sub" id="dono-completo" hidden><span>Nome completo deste cliente</span>
+          <input type="text" name="nomeCompleto" placeholder="ex.: José Carlos da Silva"><small class="muted">A planilha do BTG só traz o primeiro nome: com o nome completo o B.I. não junta pessoas diferentes.</small></label>` : ''}
         <label class="opcao"><input type="radio" name="modo" value="novo" ${sugerido ? '' : 'checked'}> Novo cliente
           <input type="text" name="nome" placeholder="Nome completo" value="${esc(cad?.cliente || ext.clienteSugerido || '')}"></label>
         <label class="opcao sub"><span>Grupo familiar</span>
@@ -4763,6 +4844,10 @@ function perguntarDono(ext) {
     }
     somar();
     f.familia.addEventListener('change', () => { f.novaFamilia.hidden = f.familia.value !== '__nova'; });
+    // Cliente escolhido só com o primeiro nome: pede o nome completo (fica no cadastro das contas dele e deste extrato)
+    const precisaCompleto = () => f.cliente && f.modo.value === 'existente' && soPrimeiroNome(S.clientes.get(f.cliente.value)?.nome || '');
+    const verCompleto = () => { const p = precisaCompleto(); $('#dono-completo').hidden = !p; f.nomeCompleto.required = p; };
+    if (f.cliente) { f.cliente.addEventListener('change', verCompleto); dlg.querySelectorAll('input[name=modo]').forEach(r => r.addEventListener('change', verCompleto)); verCompleto(); }
     dlg.querySelectorAll('input[name=modo]').forEach(r => r.addEventListener('change', () => { if (f.modo.value === 'novo') f.nome.focus(); }));
     dlg.onclose = () => {
       if (dlg.returnValue !== 'ok') return resolve(null);
@@ -4785,8 +4870,10 @@ function perguntarDono(ext) {
       let cliente, familia;
       if (f.modo.value === 'existente' && f.cliente) {
         const c = S.clientes.get(f.cliente.value);
-        cliente = c.nome; familia = c.familiaNome || null;
-        for (const ct of c.contas) if (!cadastroDe(ct)) S.cadExtra.set(chaveConta(ct), { conta: ct, cliente, familia: familia || cliente });
+        const completo = soPrimeiroNome(c.nome) ? nomeProprio(f.nomeCompleto.value.trim()) : '';
+        cliente = completo || c.nome; familia = c.familiaNome && !soPrimeiroNome(c.familiaNome) ? c.familiaNome : null;
+        for (const ct of c.contas) if (!cadastroDe(ct) || completo) S.cadExtra.set(chaveConta(ct), { conta: ct, cliente, familia: familia || cliente });
+        if (completo) salvarCadLocal();
       } else {
         cliente = f.nome.value.trim() || ext.clienteSugerido || `Cliente ${cf}`;
         familia = f.familia.value === '__nova' ? f.novaFamilia.value.trim() : f.familia.value;
@@ -4881,7 +4968,11 @@ function combinarComExistente(ext, dono, id) {
   const chaves = new Set(dono.regs.map(chavePosicao));
   const cand = [...S.fontes.values()].filter(f => f.id !== 'BTG' && f.id !== 'EXEMPLO' && f.inst === dono.inst &&
     (f.id === id || f.registros.some(r => norm(r.nome) === norm(dono.cliente))));
+  // Conta do extrato já carregado ('' quando veio sem conta: o id usa o nome do arquivo)
+  const contaDe = f => { const c = f.id.slice(String(f.inst).length + 1); return c && c !== f.arquivo && !/\.(pdf|xlsx?|xlsm|jpe?g|png|webp|bmp)$/i.test(c) ? c : ''; };
   for (const f of cand) {
+    // Contas diferentes (ex.: PF e PJ no mesmo banco, cada uma só com saldo em conta) são sempre extratos diferentes
+    if (f.id !== id && dono.conta && contaDe(f) && chaveConta(contaDe(f)) !== chaveConta(dono.conta)) continue;
     const iguais = f.registros.filter(r => chaves.has(chavePosicao(r))).length;
     if (f.id !== id && iguais < Math.max(1, Math.min(f.registros.length, chaves.size) / 2)) continue;  // aplicações diferentes: outro extrato
     const dNovo = data(ext.data), dVelho = data(f.dataRef);
@@ -4910,7 +5001,7 @@ function incluirExtrato(ext, dono) {
   adicionarFonte({
     id: `${dono.inst}|${dono.conta || nomeArq}`, inst: dono.inst, contaBTG: ext.contaBTG || null, dataRef: ext.data || null, modelo: ext.modelo || `${dono.inst}-${ext.tipo || ''}`,
     rotulo: `${nomeProprio(dono.cliente).split(' ')[0]} ${dono.conta}`.trim(), arquivo: nomeArq,
-    registros: dono.regs.map(r => ({ ...r, conta: dono.contaFull || `${dono.inst} ${nomeArq}`, nome: dono.cliente, data: ext.data })),
+    registros: dono.regs.map(r => ({ ...r, conta: dono.contaFull || `${dono.inst} ${nomeArq}`, nome: dono.cliente, titular: ext.clienteSugerido || null, data: ext.data })),
   });
 }
 async function processarArquivos(arquivos, opc = {}) {
@@ -5292,6 +5383,9 @@ $('#abas').addEventListener('click', e => { const b = e.target.closest('button')
 
 // Janelas (dialog): o botão com "value" fecha a janela direto, sem depender do envio do formulário,
 // que a pré-visualização do SharePoint e alguns navegadores bloqueiam. Campos obrigatórios continuam sendo conferidos.
+// Uma janela que fecha e logo abre outra no mesmo dialog (ex.: Extratos → Substituir): o aviso "close" da primeira
+// chega atrasado, com a segunda já aberta, e a cancelava. Aviso de fechamento com a janela aberta é ignorado.
+document.addEventListener('close', e => { if (e.target.open) e.stopImmediatePropagation(); }, true);
 document.addEventListener('click', e => {
   const b = e.target.closest('dialog form[method="dialog"] button[value]');
   if (!b) return;
