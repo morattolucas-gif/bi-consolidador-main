@@ -3296,6 +3296,7 @@ function lerExtratoPdf(linhas, inst) {
   if (/ extrato da conta investimento /.test(topo) && linhas.some(l => /Posi\S+o - /i.test(l))) return lerBTGPdf(linhas);
   if (/ informativo mensal /.test(topo) && / caixa /.test(topo)) return lerCaixaInformativo(linhas);
   if (linhas.some(l => /^Investimentos\s+DT\.REF\s+DT\.VENCTO/i.test(l))) return lerCaixaSaldo(linhas);
+  if (/ detalhes das debentures /.test(topo)) return lerDebenturesDetalhe(linhas, inst);
   if (inst === 'Nomad' || linhas.some(l => /^Nome\s+Tipo\s+Ticker/i.test(l))) return lerNomad(linhas);
   if (inst === 'Safra') return lerSafra(linhas);
   if (inst === 'XP') return lerXP(linhas);
@@ -3472,6 +3473,31 @@ function lerCaixaSaldo(linhas) {
   if (!regs.length) throw new Error('Reconheci o saldo em carteira da Caixa, mas não encontrei as aplicações.');
   return { inst: 'Caixa', modelo: 'caixa-saldo', conta: '', clienteSugerido: cliente, data, total: total || null, regs,
     avisos: ['O "Saldo em carteira" da Caixa não traz o número da conta. Se este cliente já tem o informativo mensal da Caixa, os dois são combinados: cada aplicação é contada uma vez, com o valor mais recente.'] };
+}
+
+/* ---------- "Detalhes das Debêntures" (agente da emissão): uma debênture, saldo por data ----------
+   Colunas: Data, Qtde, PU, Rendimento, Resgate, Saldo, IRRF, Resgate Líquido. Vale o "Tot. Geral" (ou a última data). */
+function lerDebenturesDetalhe(linhas, inst) {
+  const txt = linhas.join('\n');
+  const cliente = txt.match(/Debenturista:\s*(.+)/i)?.[1].trim() || null;
+  const serie = txt.match(/Emiss\S+o e S\S+rie:\s*(.+)/i)?.[1].trim() || '';
+  const partes = serie.split(/\s+-\s+/).map(s => s.trim()).filter(Boolean);
+  const nome = 'Debênture ' + [...new Set(partes.slice(1).map(s => s.replace(/\bEMISS\S+O\b/i, 'Emissão').replace(/\bS\S+RIE\b/i, 'Série')))].join(' — ');
+  const reais = l => [...l.matchAll(/-?R\$\s*([\d.]+,\d{2})/g)].map(m => numero(m[1]));
+  // Linhas de data: Data Qtde PU Rendimento [Resgate] Saldo IRRF Líquido (o saldo é o antepenúltimo valor)
+  const datas = linhas.map(l => l.trim()).filter(l => /^\d{2}\/\d{2}\/\d{4}\s+[\d.]+\s+R\$/.test(l));
+  const ult = datas.at(-1), tot = linhas.find(l => /^Tot\.?\s*Geral/i.test(l.trim()));
+  const fonte = tot || ult;
+  if (!fonte) throw new Error('Reconheci o "Detalhes das Debêntures", mas não encontrei o saldo.');
+  const v = reais(fonte);
+  const [saldo, irrf, liquido] = v.slice(-3);
+  const data = ult ? ult.match(/^(\d{2}\/\d{2}\/\d{4})/)[1] : null;
+  const qtd = ult ? numero(ult.split(/\s+/)[1]) : null;
+  const avisos = ['Debênture sem emissor e sem indexador no documento: confira a classe e a estratégia na conferência.'];
+  if (/valores estimados|proje\S+o|simula/i.test(txt)) avisos.unshift('Este documento é uma simulação: o próprio PDF diz que os valores são estimados, não emitidos pelo agente.');
+  return { inst: inst || '', modelo: 'debentures-detalhe', conta: '', clienteSugerido: cliente, data, total: saldo, revisar: true,
+    regs: [{ mercado: 'Renda Fixa', sub: 'PRIVADO', ativo: nome, produto: 'DEBENTURE', emissor: '', quantidade: qtd, estrategia: 'Sem classificação',
+      bruto: saldo, liquido: liquido ?? saldo, ir: irrf || 0 }], avisos };
 }
 
 /* ---------- Safra: "Relatório Diário" ---------- */
@@ -3704,6 +3730,9 @@ function reconciliar(ext) {
    Quem mudar o código acrescenta uma entrada no topo (data, autor e o que mudou, em linguagem simples).
    Ao abrir uma versão nova, o B.I. registra a atualização no histórico. */
 const VERSOES_BI = [
+  { versao: '2026.10.15', data: '2026-10-15', autor: 'Vinicius + Claude', mudancas: [
+    'Novo leitor de PDF: "Detalhes das Debêntures" (extrato do agente da emissão). Entra o saldo bruto mais recente, com o IR; a conferência abre para escolher instituição, conta, classe e estratégia.',
+  ] },
   { versao: '2026.10.14h', data: '2026-10-14', autor: 'Vinicius + Claude', mudancas: [
     'Versão unificada: as melhorias do Lucas (políticas de investimento, IndexedDB, precisão numérica, SRI) com as de organização de nomes, contas e titulares nos extratos e relatórios.',
   ] },
