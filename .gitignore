@@ -19,3 +19,9 @@ Thumbs.db
 *.bak
 *.tmp
 ~*
+index.legacy.html
+
+# Dependências e build (Vite / TypeScript)
+node_modules/
+dist/
+

@@ -1,0 +1,40 @@
+import { EstadoGlobal } from '../types';
+
+export const S: EstadoGlobal = {
+  posicoes: [],
+  fontes: new Map(),
+  clientes: new Map(),
+  familias: new Map(),
+  clientePorConta: new Map(),
+  descConta: new Map(),
+  cadExtra: new Map(),
+  politicasPorConta: new Map(),
+  aba: 'carteira',
+  dim: 'classe',
+  campoValor: 'bruto',
+  topN: 10,
+  raioX: '',
+  abertas: new Set(),
+  ordem: {},
+  mapa: { nivel: 'cliente', cols: 'classe', metrica: 'brl', filtro: '', busca: '' },
+  sel: '',
+  buscaConta: '',
+  ativo: '',
+  ativoModo: 'um',
+  ativosSel: [],
+  alvo: 0.05,
+  minimo: 10000,
+  publico: 'todos',
+  exemplo: false,
+  movs: new Map(),
+  fm: {
+    ativo: '',
+    conta: '',
+    acao: 'aplicar',
+    nivel: 'ativo',
+    modo: 'valor',
+    valor: '',
+    origem: 'caixa',
+    novo: { nome: '', classe: '', subclasse: '', estrategia: '' }
+  }
+};

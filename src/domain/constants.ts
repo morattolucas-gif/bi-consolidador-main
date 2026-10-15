@@ -1,0 +1,122 @@
+export const CLASSES_EST: Record<string, string> = {
+  Pos: 'Pós-fixado (CDI)',
+  Infl: 'Inflação (IPCA+)',
+  Pre: 'Pré-fixado',
+  Acoes: 'Ações Brasil',
+  FII: 'FIIs e Fiagro',
+  Alt: 'Alternativos (FIP / PE)',
+  MM: 'Multimercado',
+  Intl: 'Internacional',
+  Cripto: 'Criptoativos',
+  Caixa: 'Caixa e liquidez',
+  Outros: 'Não identificado'
+};
+
+export const RISCO_CREDITO: Record<string, string> = {
+  Sob: 'Risco Soberano',
+  Banc: 'Crédito Bancário (FGC)',
+  Corp: 'Crédito Corporativo',
+  Estr: 'Crédito Estruturado',
+  ReaisTijolo: 'Ativos Reais — Tijolo',
+  ReaisSoc: 'Ativos Reais — Participações Societárias',
+  FRF: 'Fundos de Renda Fixa',
+  Acoes: 'Ações (Risco de Mercado)',
+  Alt: 'Alternativos',
+  Imob: 'Imobiliário (FIIs)',
+  MM: 'Fundos Multimercado',
+  Intl: 'Internacional',
+  Cripto: 'Criptoativos',
+  Caixa: 'Caixa / Liquidez',
+  Deriv: 'Derivativo',
+  Outros: 'Não identificado'
+};
+
+export const CONTRAPARTES = RISCO_CREDITO;
+
+export const POLITICA_PADRAO = {
+  nome: 'Política de Investimentos Padrão (Range Operacional)',
+  classes: {
+    Pos:   { min: 0.10, alvo: 0.20, max: 0.35 },
+    Infl:  { min: 0.15, alvo: 0.25, max: 0.40 },
+    Pre:   { min: 0.00, alvo: 0.05, max: 0.10 },
+    Acoes: { min: 0.05, alvo: 0.10, max: 0.15 },
+    FII:   { min: 0.05, alvo: 0.10, max: 0.15 },
+    Alt:   { min: 0.00, alvo: 0.05, max: 0.10 },
+    Intl:  { min: 0.05, alvo: 0.10, max: 0.15 },
+    Caixa: { min: 0.02, alvo: 0.05, max: 0.10 }
+  },
+  credito: {
+    Sob:         { min: 0.20, alvo: 0.35, max: 0.50 },
+    Banc:        { min: 0.10, alvo: 0.20, max: 0.30 },
+    Corp:        { min: 0.05, alvo: 0.15, max: 0.25 },
+    Estr:        { min: 0.00, alvo: 0.05, max: 0.10 },
+    ReaisTijolo: { min: 0.05, alvo: 0.10, max: 0.20 },
+    ReaisSoc:    { min: 0.00, alvo: 0.05, max: 0.10 },
+    Acoes:       { min: 0.05, alvo: 0.10, max: 0.15 },
+    MM:          { min: 0.00, alvo: 0.05, max: 0.10 },
+    Intl:        { min: 0.05, alvo: 0.10, max: 0.15 },
+    Caixa:       { min: 0.02, alvo: 0.05, max: 0.10 }
+  }
+};
+
+export const HORIZONTES: Record<string, [string, string]> = {
+  C: ['Curto prazo', 'Liquidez diária'],
+  M: ['Médio prazo', 'Até 2 anos'],
+  L: ['Longo prazo', 'Acima de 2 anos']
+};
+
+export const JANELAS: Record<string, string> = {
+  dia: 'Diária (D+0 / D+1)',
+  prev: 'Previdência (resgate em dias)',
+  bolsa: 'Bolsa (D+2)',
+  cot: 'Fundos com cotização',
+  venc: 'Até o vencimento'
+};
+
+export const NOME_INST: Record<string, string> = {
+  BTG: 'BTG Pactual',
+  XP: 'XP Investimentos',
+  Safra: 'Banco Safra',
+  Caixa: 'Caixa Econômica Federal',
+  Nomad: 'Nomad Global (USD)',
+  Rhino: 'Rhino Securitizadora'
+};
+
+export const TIPOS: Record<string, string> = {
+  EQ: 'Ações / Stocks',
+  ETF: 'ETFs',
+  REIT: 'Real Estate (REITs)',
+  BOND: 'Bonds (Renda Fixa USD)',
+  CASH: 'Saldo em Dólar'
+};
+
+export const PALETA_DG = ['#0A1F44', '#1F4E87', '#2E6FB7', '#4A86C5', '#7FA6D3', '#3C4A5E', '#5C6B80', '#8995A8', '#A9C3E2', '#B9C4D2'];
+
+export const RAMPA = ['#cfe0f5', '#b7d3f6', '#9ec5f4', '#86b6ef', '#6da7ec', '#5598e7', '#3987e5', '#2a78d6', '#256abf', '#1c5cab', '#184f95', '#104281', '#0A1F44'];
+
+export const CHAVE_FONTES = 'bi-base-clientes:fontes';
+export const CHAVE_CAD = 'bi-base-clientes:cadastro-extra';
+export const CHAVE_HIST = 'bi-base-clientes:historico';
+export const CHAVE_PASTA = 'bi-base-clientes:pasta-dono';
+export const CHAVE_CAD_ARQ = 'bi-base-clientes:cadastro-arquivo';
+export const CHAVE_USUARIO = 'bi-base-clientes:usuario';
+export const CHAVE_VERSAO = 'bi-base-clientes:versao-vista';
+export const CHAVE_POLITICAS = 'bi-base-clientes:politicas-investimento';
+
+export const VERSOES_BI = [
+  { versao: '2026.10.15', data: '2026-10-15', autor: 'Gestão de Engenharia + Analista', mudancas: [
+    'Fase 2 (Vite + TypeScript): Decomposição integral do monólito em módulos limpos (/domain, /parsers, /components, /styles).',
+    'Separação das regras de negócios fiduciárias da manipulação de interface DOM.',
+    'Testes automatizados com Vitest para cálculos de precisão e leitores de extratos.',
+  ] },
+  { versao: '2026.10.14', data: '2026-10-14', autor: 'Gestão de Engenharia + Analista', mudancas: [
+    'Precisão Numérica Financeira Total (BigNumber): Extensão da precisão aritmética matemática para todas as rotinas do sistema (cálculos de tabelas do PDF, horizontes de prazo C/M/L, agregação de contas/clientes/famílias, fatias de roscas e rebalanceamento), eliminando completamente resíduos de ponto flutuante IEEE-754.',
+  ] },
+  { versao: '2026.10.10b', data: '2026-10-10', autor: 'Gestão de Engenharia + Analista', mudancas: [
+    'Blindagem de Segurança (SRI): Hashes de integridade SHA-384 em scripts de CDN (xlsx, bignumber, pdf.js, tesseract) para neutralizar risco de adulteração de código.',
+    'Precisão Numérica Financeira: Integração da biblioteca bignumber.js eliminando resíduos de ponto flutuante IEEE-754 em somas de patrimônio e conversão cambial PTAX.',
+    'Persistência Robusta: Migração do armazenamento de extratos, posições e cadastros para IndexedDB, eliminando o erro de cota cheia de 5 MB do localStorage.',
+  ] }
+];
+
+export const VERSAO_BI = VERSOES_BI[0].versao;
