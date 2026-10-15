@@ -104,6 +104,15 @@ export const CHAVE_VERSAO = 'bi-base-clientes:versao-vista';
 export const CHAVE_POLITICAS = 'bi-base-clientes:politicas-investimento';
 
 export const VERSOES_BI = [
+  { versao: '2026.10.15c', data: '2026-10-15', autor: 'Vinicius + Claude', mudancas: [
+    'Versão unificada no repositório bi-consolidador-main: as melhorias de 14 e 15/10 entram na estrutura Vite + TypeScript.',
+    'A barra acima das abas voltou: planilha do BTG carregada (arquivo, posição, lida em) com Extratos, Políticas, Atualizar com a pasta e + Anexar extrato.',
+    'Vários arquivos anexados de uma vez: a planilha diária do BTG é lida primeiro, depois os extratos (assim o cliente já aparece como existente na conferência). O tipo de cada arquivo vem da extensão.',
+    'Extratos: "Substituir" e "Remover" (inclusive da planilha do BTG) funcionam a partir da janela Extratos.',
+    'Clientes com o mesmo primeiro nome não se misturam (conta ao lado do nome; nome completo pedido ao anexar); aviso com "Carregar grupos.js" quando faltam os nomes completos.',
+    'Diagnóstico: quadro "Posição por conta e instituição" com o titular de cada conta (PF/PJ); coluna "Titular da conta" no Editar cadastro.',
+    'PF e PJ no mesmo banco não se substituem; leitor do PDF "Detalhes das Debêntures"; "Saldo em conta" em primeiro lugar em Ativo e alocação.',
+  ] },
   { versao: '2026.10.15', data: '2026-10-15', autor: 'Gestão de Engenharia + Analista', mudancas: [
     'Fase 2 (Vite + TypeScript): Decomposição integral do monólito em módulos limpos (/domain, /parsers, /components, /styles).',
     'Separação das regras de negócios fiduciárias da manipulação de interface DOM.',
@@ -120,3 +129,6 @@ export const VERSOES_BI = [
 ];
 
 export const VERSAO_BI = VERSOES_BI[0].versao;
+
+// "Ativo" que junta a conta corrente de cada conta (Ativo e alocação), como no print de saldos do BTG
+export const SALDO_CONTA = 'Saldo em conta';

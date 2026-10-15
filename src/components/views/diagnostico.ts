@@ -27,6 +27,7 @@ import {
   norm,
   palavras,
   nomeProprio,
+  soPrimeiroNome,
   valor
 } from '../formatters';
 import { IMG_P_CAPA, IMG_BTG_CAPA } from './report-assets';
@@ -427,7 +428,26 @@ export function renderDiag(s: any, P: any[]) {
                : kpiDG('Exposição internacional', pcT(intl), intl ? `${rsDG(intl)}${usdTot ? ` • US$ ${num(usdTot)} no exterior` : ''}` : 'Carteira 100% Brasil, 100% em reais');
     let corpo = `<div class="kpis-dg">${k}</div>`;
     if (!multiInst) corpo += bl('composicao', 'Composição por classe', true, `<div class="box-k">Composição por classe estratégica</div>${barrasClasse(classes, cor, total, true)}`);
-    if (titulares.length > 2) {
+    if (!multiInst && contas.length > 1) {
+      // Uma instituição com 2+ contas: posição por conta (instituição, conta, titular, data-base)
+      const porConta = agruparDG(L, x => x.p.conta);
+      // Titular de cada conta: descrição do cadastro (ex.: "PJ — Holding Patrimonial"); PF = nome do cliente;
+      // sem descrição, o nome do titular que veio no extrato (a planilha do BTG só traz o primeiro nome)
+      const titularConta = (g: any) => {
+        const p = g.itens[0].p, d = S.descConta?.get(g.k);
+        if (d) return /^(pessoa f|pf$)/i.test(d) ? `${p.clienteNome} — PF` : /^PJ\s*[—-]/i.test(d) ? d.replace(/^PJ\s*[—-]\s*/i, '') + ' — PJ' : d;
+        const t = p.titular || p.nome;
+        return t && !soPrimeiroNome(t) && norm(t) !== norm(p.clienteNome) ? nomeProprio(t) : p.clienteNome;
+      };
+      const dataConta = (g: any) => { const dt = g.itens.map((x: any) => x.p.data).filter(Boolean); return dt.length ? dataBR(new Date(Math.max(...dt))) : '—'; };
+      corpo += bl('custodia', 'Posição por conta', true, `<div class="box-k bloco-dg">Posição por conta e instituição</div>` + tabelaDG([
+        { rot: 'Instituição', w: '13%', l: 1, f: (g: any) => esc(NOME_INST[g.itens[0].p.instituicao] || g.itens[0].p.instituicao) },
+        { rot: 'Conta', w: '12%', l: 1, f: (g: any) => esc(String(g.k).replace(new RegExp('^' + g.itens[0].p.instituicao + '\s+'), '')) },
+        { rot: 'Titular', w: '33%', l: 1, f: (g: any) => `<span class="nm">${esc(titularConta(g))}</span>` },
+        { rot: 'Data-base', w: '11%', l: 1, f: (g: any) => dataConta(g) },
+        { rot: 'Valor (R$)', w: '15%', f: (g: any) => rsDG(g.v) }, { rot: '% cart.', w: '9%', f: (g: any) => pcT(g.v) }, { rot: 'Nº', w: '7%', f: (g: any) => g.itens.length },
+      ], porConta, ['TOTAL CONSOLIDADO', `${porConta.length} contas`, '', '', rsDG(total), '100,00%', L.length]));
+    } else if (titulares.length > 2) {
       corpo += `<div class="box-k bloco-dg">Distribuição por ${porFamilia ? 'cliente' : 'conta'}</div>` + tabelaDG([
         { rot: porFamilia ? 'Cliente' : 'Conta', w: '34%', l: 1, f: t => `<span class="nm">${esc(rotTit(t.k))}</span>` },
         { rot: 'Contas', w: '30%', l: 1, cls: 'ativos', f: t => esc([...new Set(t.itens.map(x => x.p.conta))].join(' • ')) },

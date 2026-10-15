@@ -50,7 +50,8 @@ export function montarClientes(posicoes: Posicao[], exemplo: boolean) {
     for (const c of win.CADASTRO_CLIENTES) cad.set(chaveConta(c.conta), c);
   }
   if (!exemplo) {
-    for (const c of S.cadExtra.values()) cad.set(chaveConta(c.conta), c);
+    // Alteração feita no navegador vale por cima do grupos.js, mas mantém a descrição da conta (ex.: "PJ — Holding")
+    for (const c of S.cadExtra.values()) { const k = chaveConta(c.conta); cad.set(k, { ...cad.get(k), ...c }); }
   }
   const planilhaTemGrupo = posicoes.some(p => (p as any).grupo);
   const apelidos = exemplo ? [] : (win.APELIDOS_CLIENTES || []);
@@ -167,6 +168,6 @@ export function associacoesNovas() {
   const win = window as any;
   return [...S.cadExtra.values()].filter(c => {
     const o = (win.CADASTRO_CLIENTES || []).find((x: any) => chaveConta(x.conta) === chaveConta(c.conta));
-    return !o || norm(o.cliente) !== norm(c.cliente) || norm(o.familia || o.cliente) !== norm(c.familia || c.cliente);
+    return !o || norm(o.cliente) !== norm(c.cliente) || norm(o.familia || o.cliente) !== norm(c.familia || c.cliente) || (!!c.descricao && norm(c.descricao) !== norm(o.descricao || ''));
   });
 }

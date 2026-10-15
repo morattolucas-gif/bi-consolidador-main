@@ -98,7 +98,11 @@ export function combinarComExistente(ext: ExtratoLido, dono: any, id: string) {
   const cand = [...S.fontes.values()].filter(
     f => f.id !== 'BTG' && f.id !== 'EXEMPLO' && f.inst === dono.inst && (f.id === id || f.registros.some(r => norm(r.nome) === norm(dono.cliente)))
   );
+  // Conta do extrato já carregado ('' quando veio sem conta: o id usa o nome do arquivo)
+  const contaDe = (f: any) => { const c = f.id.slice(String(f.inst).length + 1); return c && c !== f.arquivo && !/\.(pdf|xlsx?|xlsm|jpe?g|png|webp|bmp)$/i.test(c) ? c : ''; };
   for (const f of cand) {
+    // Contas diferentes (ex.: PF e PJ no mesmo banco, cada uma só com saldo em conta) são sempre extratos diferentes
+    if (f.id !== id && dono.conta && contaDe(f) && chaveConta(contaDe(f)) !== chaveConta(dono.conta)) continue;
     const iguais = f.registros.filter(r => chaves.has(chavePosicao(r))).length;
     if (f.id !== id && iguais < Math.max(1, Math.min(f.registros.length, chaves.size) / 2)) continue;
     const dNovo = data(ext.data), dVelho = data(f.dataRef);
@@ -144,7 +148,7 @@ export function incluirExtrato(ext: ExtratoLido, dono: any) {
     modelo: ext.modelo || `${dono.inst}-${ext.tipo || ''}`,
     rotulo: `${nomeProprio(dono.cliente).split(' ')[0]} ${dono.conta}`.trim(),
     arquivo: nomeArq,
-    registros: dono.regs.map((r: any) => ({ ...r, conta: dono.contaFull || `${dono.inst} ${nomeArq}`, nome: dono.cliente, data: ext.data }))
+    registros: dono.regs.map((r: any) => ({ ...r, conta: dono.contaFull || `${dono.inst} ${nomeArq}`, nome: dono.cliente, titular: ext.clienteSugerido || null, data: ext.data }))
   });
 }
 
@@ -221,8 +225,8 @@ export async function lerArquivo(arquivo: Blob | File, opc: { tipo?: string; ins
   return { ext };
 }
 
-export async function processarArquivo(arquivo: Blob | File, opc: { tipo?: string; inst?: string } = {}): Promise<any> {
-  const r = await lerArquivo(arquivo, opc);
+export async function processarArquivo(arquivo: Blob | File, opc: { tipo?: string; inst?: string } = {}, lido?: any): Promise<any> {
+  const r = lido || (await lerArquivo(arquivo, opc));
   if (r.politicas) {
     for (const [conta, pol] of r.politicas) {
       S.politicasPorConta.set(conta, pol);
@@ -255,16 +259,38 @@ export async function processarArquivo(arquivo: Blob | File, opc: { tipo?: strin
   return dono;
 }
 
+// Vários arquivos de uma vez: lê todos primeiro e inclui a planilha diária do BTG (e as políticas) antes dos extratos,
+// para que, na conferência de cada extrato, os clientes da planilha já apareçam como "cliente existente".
+// O tipo de cada arquivo vem da extensão quando ela diz algo diferente do tipo escolhido (ex.: Excel e PDF juntos).
 export async function processarArquivos(arquivos: (Blob | File)[], opc: { tipo?: string; inst?: string } = {}) {
+  const erro = (a: Blob | File, e: any) => {
+    const errEl = $('#erro');
+    if (errEl) {
+      errEl.textContent = `${(a as File).name || 'arquivo'}: ${e.message || e}`;
+      errEl.hidden = false;
+    }
+  };
+  const tipoDoArquivo = (a: Blob | File) => {
+    const n = (a as File).name || '';
+    const t = /\.pdf$/i.test(n) ? 'pdf' : /\.(xlsx|xls|xlsm)$/i.test(n) ? 'excel' : /^image\//.test(a.type) || /\.(png|jpe?g|webp|bmp)$/i.test(n) ? 'foto' : '';
+    return { ...opc, tipo: t || opc.tipo };
+  };
+  const lidos: { a: Blob | File; o: any; r: any }[] = [];
   for (const a of arquivos) {
+    const o = tipoDoArquivo(a);
     try {
-      await processarArquivo(a, opc);
+      lidos.push({ a, o, r: await lerArquivo(a, o) });
     } catch (e: any) {
-      const errEl = $('#erro');
-      if (errEl) {
-        errEl.textContent = `${(a as File).name || 'arquivo'}: ${e.message || e}`;
-        errEl.hidden = false;
-      }
+      erro(a, e);
+    }
+  }
+  const primeiro = (x: { r: any }) => (x.r.macro || x.r.politicas ? 0 : 1);
+  lidos.sort((x, y) => primeiro(x) - primeiro(y));
+  for (const { a, o, r } of lidos) {
+    try {
+      await processarArquivo(a, o, r);
+    } catch (e: any) {
+      erro(a, e);
     }
   }
 }

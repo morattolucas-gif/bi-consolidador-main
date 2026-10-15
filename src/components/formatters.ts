@@ -40,8 +40,9 @@ export const esc = (s: any): string =>
 export const norm = (s: any): string =>
   String(s ?? '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
 
-export const palavras = (s: any): string =>
-  String(s ?? '').replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
+// Texto sem acento, em minúsculas, só letras e números, com espaço nas pontas: os leitores procuram " palavra "
+// (ex.: / extrato da conta investimento /, / cdb /). Sem os espaços e sem tirar os acentos, nada é reconhecido.
+export const palavras = (s: any): string => ' ' + norm(s).replace(/[^a-z0-9]+/g, ' ').trim() + ' ';
 
 export const compacto = (s: any): string =>
   norm(s).replace(/[^a-z0-9]/g, '');
@@ -73,3 +74,10 @@ export const valor = (p: any): number =>
   S.campoValor === 'liquido' ? (p?.liquido ?? p?.bruto ?? 0) : (p?.bruto ?? p?.liquido ?? 0);
 
 
+
+// Nomes repetidos (a planilha do BTG só traz o primeiro nome): nas listas aparece a conta para diferenciar
+export const nomeRepetido = (nome: string, lista: { nome: string }[]): boolean => lista.filter(x => norm(x.nome) === norm(nome)).length > 1;
+export const rotuloContas = (contas: string[]): string =>
+  (contas.length > 1 ? 'contas ' : 'conta ') + contas.map(c => String(c).replace(/^0+(?=\d)/, '')).join(', ');
+// Nome com uma palavra só (ex.: "Carlos", como vem na planilha): não serve para identificar uma pessoa
+export const soPrimeiroNome = (nome: any): boolean => norm(nome).trim().split(/\s+/).filter(Boolean).length < 2;

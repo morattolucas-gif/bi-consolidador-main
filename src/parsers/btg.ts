@@ -91,6 +91,7 @@ export function montarPosicao(r: any): Posicao | null {
     cambio: numero(r.cambio) || undefined,
     cambioData: texto(r.cambioData) || undefined,
     taxaTexto: texto(r.taxaTexto) || undefined,
+    titular: texto(r.titular) || null,  // titular como veio no extrato (ex.: a PJ do cliente)
     estrategia: texto(r.estrategia) || ESTRATEGIA_PADRAO[norm(mercado)] || 'Sem classificação',
     caixa: norm(mercado) === 'conta corrente',
     receber: ['valor em transito', 'valores em transito', 'valores a receber', 'proventos a receber'].includes(norm(mercado)),

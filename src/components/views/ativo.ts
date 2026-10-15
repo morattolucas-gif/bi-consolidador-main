@@ -12,6 +12,7 @@ import {
   unidades
 } from '../../domain/calculations';
 import { kpi, kpiDG } from '../kpi';
+import { SALDO_CONTA } from '../../domain/constants';
 import { miniBarra, calor } from '../charts';
 import { tabela, tabelaDG } from '../dom';
 import { celUnidade, attrUnidade } from './carteira';
@@ -76,7 +77,7 @@ export function posicaoAtivos(nomes: string[]) {
   const us = unidades('cliente'),
     totalBase = somar(S.posicoes);
   const ativos = nomes.map(nome => {
-    const ps = S.posicoes.filter(p => p.nomeAtivo === nome);
+    const ps = nome === SALDO_CONTA ? S.posicoes.filter(p => p.caixa) : S.posicoes.filter(p => p.nomeAtivo === nome);
     const porCli = new Map<string, number>();
     for (const p of ps) porCli.set(p.clienteId!, somaPrecisa(porCli.get(p.clienteId!), valor(p)));
     const v = somaLista([...porCli.values()]);
@@ -84,8 +85,8 @@ export function posicaoAtivos(nomes: string[]) {
     const clientes = [...porCli.entries()].map(([k, x]) => ({ nome: us.get(k)?.nome || k, p: divPrecisa(x, us.get(k)?.pl || 1) }));
     return {
       nome,
-      classe: ps[0]?.classe || '–',
-      subclasse: ps[0]?.subclasse || '–',
+      classe: nome === SALDO_CONTA ? 'Caixa' : ps[0]?.classe || '–',
+      subclasse: nome === SALDO_CONTA ? 'Conta corrente' : ps[0]?.subclasse || '–',
       porCli,
       clientes,
       v,
@@ -474,12 +475,16 @@ export function renderAtivo() {
   const ativos = [...porAtivo.values()];
   if (!S.ativo) S.ativo = ativos.sort((a, b) => b.v - a.v)[0]?.nome || '';
   const classes = ordenadoDesc(somarPor(inv, p => p.classe)).map(([k]) => k);
-  const existeNaLista = porAtivo.has(S.ativo);
+  // "Saldo em conta" (conta corrente de cada conta) vem em primeiro lugar, como no print de saldos do BTG
+  const cx = S.posicoes.filter(p => p.caixa);
+  const saldo = cx.length ? { nome: SALDO_CONTA, classe: 'Caixa', v: somar(cx), contas: new Set(cx.map(p => p.clienteId)) } : null;
+  const existeNaLista = porAtivo.has(S.ativo) || (!!saldo && S.ativo === SALDO_CONTA);
 
   const selAtivo = $('#sel-ativo') as HTMLSelectElement | null;
   if (selAtivo) {
     selAtivo.innerHTML =
       (existeNaLista ? '' : `<option value="${esc(S.ativo)}">${esc(S.ativo)} (ativo novo)</option>`) +
+      (saldo ? `<optgroup label="Caixa"><option value="${SALDO_CONTA}">${SALDO_CONTA} — ${esc(brlCurto(saldo.v))} · ${saldo.contas.size} cliente(s)</option></optgroup>` : '') +
       classes
         .map(
           cl =>
@@ -509,9 +514,25 @@ export function renderAtivo() {
   if (campoUm) campoUm.hidden = varios;
   if (campoNovo) campoNovo.hidden = varios;
   if (campoVar) campoVar.hidden = !varios;
-  if (cartaoSim) cartaoSim.hidden = varios;
+  const soSaldo = !varios && S.ativo === SALDO_CONTA && !!saldo;
+  if (cartaoSim) cartaoSim.hidden = varios || soSaldo;
+
+  if (soSaldo) {
+    // Saldo em conta no modo "um ativo": só a posição por cliente (o simulador de % alvo não se aplica ao caixa)
+    const chipsAtivo = $('#chips-ativo');
+    if (chipsAtivo) chipsAtivo.innerHTML = '<span class="chip">Classe <b>Caixa</b></span><span class="chip">Conta corrente de cada conta, na data da planilha</span>';
+    const R = renderPosicao([SALDO_CONTA]), a = R.ativos[0];
+    const cartaoPos = $('#cartao-posicao');
+    if (cartaoPos) cartaoPos.hidden = false;
+    const kpiAtivo = $('#kpi-ativo');
+    if (kpiAtivo) kpiAtivo.innerHTML = kpi('Total na base', brlCurto(a.v), `${pct(a.media, 2)} do patrimônio da base`, brl(a.v)) +
+      kpi('Clientes com posição', `${a.nCli} de ${R.nClientes}`) + kpi('Peso médio (quem tem)', pct(a.pesoMedio, 2)) + kpi('Maior peso', pct(a.maior, 2), a.maiorNome);
+    return;
+  }
 
   if (varios) {
+    if (saldo) porAtivo.set(SALDO_CONTA, saldo);
+    const ativos = [...porAtivo.values()];
     S.ativosSel = S.ativosSel.filter(n => porAtivo.has(n));
     if (!S.ativosSel.length && porAtivo.has(S.ativo)) S.ativosSel = [S.ativo];
     const chipsSel = $('#chips-sel');
@@ -529,7 +550,7 @@ export function renderAtivo() {
     if (listaAtivos) {
       listaAtivos.innerHTML = ativos
         .filter(a => !S.ativosSel.includes(a.nome))
-        .sort((a, b) => b.v - a.v)
+        .sort((a, b) => Number(b.nome === SALDO_CONTA) - Number(a.nome === SALDO_CONTA) || b.v - a.v)
         .map(a => `<option value="${esc(a.nome)}">${esc(a.classe)} · ${esc(brlCurto(a.v))}</option>`)
         .join('');
     }

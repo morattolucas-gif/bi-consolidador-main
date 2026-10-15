@@ -1,5 +1,5 @@
 import { $ } from '../dom';
-import { esc, norm, brl, brlCurto, inteiro, pct, num, chaveConta } from '../formatters';
+import { esc, norm, brl, brlCurto, inteiro, pct, num, chaveConta, nomeRepetido, rotuloContas } from '../formatters';
 import { somaLista, somaPrecisa } from '../../domain/precision';
 import { S } from '../../domain/state';
 import {
@@ -537,7 +537,7 @@ export function renderConta() {
         .map(
           u =>
             `<option value="${esc(u.key)}">${esc(u.nome)}${
-              u.contas.length > 1 ? ` (${u.contas.length} contas)` : ''
+              nomeRepetido(u.nome, clientes) ? ` · ${esc(rotuloContas(u.contas))}` : u.contas.length > 1 ? ` (${u.contas.length} contas)` : ''
             } — ${esc(brlCurto(u.pl))}</option>`
         )
         .join('') +

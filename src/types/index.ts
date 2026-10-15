@@ -38,6 +38,7 @@ export interface Posicao {
   ir?: number;
   iof?: number;
   grupo?: string;
+  titular?: string | null;  // titular como veio no extrato (ex.: a PJ do cliente)
 }
 
 export interface FonteExtrato {
@@ -117,7 +118,7 @@ export interface EstadoGlobal {
   familias: Map<string, Familia>;
   clientePorConta: Map<string, Cliente>;
   descConta: Map<string, string>;
-  cadExtra: Map<string, { conta: string; cliente: string; familia?: string }>;
+  cadExtra: Map<string, { conta: string; cliente: string; familia?: string; descricao?: string }>;
   politicasPorConta: Map<string, PoliticaInvestimento>;
   aba: string;
   dim: 'classe' | 'subclasse' | 'estrategia' | 'instituicao';

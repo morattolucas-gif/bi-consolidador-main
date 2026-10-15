@@ -1,6 +1,6 @@
 import './styles/main.css';
 import { S } from './domain/state';
-import { CHAVE_CAD_ARQ, CHAVE_USUARIO } from './domain/constants';
+import { CHAVE_CAD_ARQ, CHAVE_USUARIO, SALDO_CONTA } from './domain/constants';
 import {
   adicionarFonte,
   removerFonte,
@@ -10,8 +10,10 @@ import {
 import {
   restaurarFontes,
   restaurarPoliticas,
-  lerLocal
+  lerLocal,
+  registrar
 } from './domain/storage';
+import { associacoesNovas } from './domain/calculations';
 import {
   anexarExtrato,
   abrirPoliticas,
@@ -33,6 +35,7 @@ import {
   processarArquivos,
   avisarPlanilhaAntiga,
   aplicarCadastro,
+  lerCadastroDaPasta,
   setModalDonoHandler
 } from './parsers/pasta';
 import { baixarModeloPoliticaExcel } from './parsers/politicas-excel';
@@ -89,9 +92,59 @@ export function irPara(aba: string, rolar: boolean = true) {
   if (rolar) window.scrollTo({ top: 0 });
 }
 
+// Barra acima das abas: planilha do BTG carregada (arquivo, posição, lida em) e os botões de extratos
+function renderFontes() {
+  const fs = [...S.fontes.values()];
+  const btg = S.fontes.get('BTG') || S.fontes.get('EXEMPLO');
+  const lida = (f: any) => (f?.enviadoEm ? `lida em ${new Date(f.enviadoEm).toLocaleDateString('pt-BR')}` : '');
+  const info = btg
+    ? btg.id === 'EXEMPLO'
+      ? 'Base fictícia de demonstração'
+      : `Planilha do BTG: <b>${esc(btg.arquivo || '–')}</b>${btg.dataRef ? ` · posição de ${esc(btg.dataRef)}` : ''}${lida(btg) ? ` · ${esc(lida(btg))}` : ''}`
+    : 'Sem planilha do BTG carregada';
+  const nExt = fs.filter(f => f.id !== 'BTG' && f.id !== 'EXEMPLO').length;
+  const nPol = S.politicasPorConta?.size || 0;
+  const nNovos = associacoesNovas().length;
+  const el = $('#fontes');
+  if (el) el.innerHTML = `<span class="info-dados">${info}</span>` +
+    `<button class="btn" data-acao="extratos" title="Planilha do BTG e extratos de cada cliente: data, quem enviou, substituir e remover">Extratos${nExt ? ` (${nExt})` : ''}</button>` +
+    `<button class="btn" data-acao="politicas" title="Gerenciar Políticas de Investimento em Excel por Conta (LGPD)">Políticas${nPol ? ` (${nPol})` : ''}</button>` +
+    `<button class="btn" data-acao="atualizarpasta" title="Lê a pasta de posições e carrega os arquivos mais recentes">Atualizar com a pasta</button>` +
+    `<button class="btn" data-acao="addextrato">+ Anexar extrato</button>` +
+    (nNovos ? `<button class="btn" data-acao="salvarcad" title="Clientes associados a extratos que ainda não estão no cadastro permanente">Guardar ${nNovos === 1 ? '1 cliente novo' : `${nNovos} clientes novos`}</button>` : '');
+  avisarCadastro();
+}
+
+// Sem cadastro (grupos.js) neste navegador, a planilha do BTG só traz o primeiro nome: avisa e oferece carregar o arquivo
+function avisarCadastro() {
+  const box = $('#aviso-cad');
+  if (!box) return;
+  const semCad = !S.exemplo && S.posicoes.length > 0 && !((window as any).CADASTRO_CLIENTES || []).length;
+  box.hidden = !semCad;
+  if (!semCad) return;
+  box.innerHTML = `<b>Nomes completos não carregados:</b> a planilha do BTG só traz o primeiro nome. Carregue o cadastro de clientes (arquivo <b>grupos.js</b>, na pasta B.I do OneDrive) para o B.I. saber quem é quem.
+    <button type="button" class="btn-link" id="btn-cad-arq">Carregar grupos.js</button>`;
+  const b = $('#btn-cad-arq');
+  if (b) b.onclick = () => ($('#arq-cadastro') as HTMLInputElement)?.click();
+}
+$('#arq-cadastro')?.addEventListener('change', async e => {
+  const inp = e.target as HTMLInputElement;
+  const a = inp.files?.[0];
+  inp.value = '';
+  if (!a) return;
+  try {
+    const c = await lerCadastroDaPasta(a);
+    limparCadLocal();
+    registrar('Cadastro carregado', `${a.name} · ${c.clientes.length} contas`);
+    recalcular();
+  } catch (err: any) {
+    alert(`Não consegui ler o cadastro (${err.message || err}). Confira se é o grupos.js da pasta B.I.`);
+  }
+});
+
 // Configura callback mútuo entre pipeline e UI
 registrarCallbacksUI({
-  renderFontes: () => {},
+  renderFontes,
   irPara,
   render
 });
@@ -301,7 +354,7 @@ $('#busca-varios')?.addEventListener('change', e => {
   const input = e.target as HTMLInputElement;
   const v = input.value.trim();
   if (!v) return;
-  const achado = S.posicoes.find(p => norm(p.nomeAtivo) === norm(v));
+  const achado = norm(v) === norm(SALDO_CONTA) ? { nomeAtivo: SALDO_CONTA } : S.posicoes.find(p => norm(p.nomeAtivo) === norm(v));
   if (achado && achado.nomeAtivo && !S.ativosSel.includes(achado.nomeAtivo)) {
     S.ativosSel.push(achado.nomeAtivo);
   }
@@ -327,6 +380,9 @@ $('#abas')?.addEventListener('click', e => {
 });
 
 // Janelas (dialog)
+// Uma janela que fecha e logo abre outra no mesmo dialog (ex.: Extratos → Substituir): o aviso "close" da primeira
+// chega atrasado, com a segunda já aberta, e a cancelava. Aviso de fechamento com a janela aberta é ignorado.
+document.addEventListener('close', e => { if ((e.target as HTMLDialogElement).open) e.stopImmediatePropagation(); }, true);
 document.addEventListener('click', e => {
   const b = (e.target as HTMLElement).closest('dialog form[method="dialog"] button[value]') as HTMLButtonElement;
   if (!b) return;

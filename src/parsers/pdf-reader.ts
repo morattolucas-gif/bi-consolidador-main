@@ -2,6 +2,7 @@ import { carregarScript } from './script-loader';
 import { palavras } from '../components/formatters';
 import { lerBTGPdf } from './btg';
 import { lerCaixaInformativo, lerCaixaSaldo } from './caixa';
+import { lerDebenturesDetalhe } from './debentures';
 import { lerNomad } from './nomad';
 import { lerSafra } from './safra';
 import { lerXP } from './xp';
@@ -65,6 +66,7 @@ export function lerExtratoPdf(linhas: string[], inst?: string): ExtratoLido {
   if (/ extrato da conta investimento /.test(topo) && linhasLimpass.some(l => /Posi\S+o - /i.test(l))) return lerBTGPdf(linhasLimpass);
   if (/ informativo mensal /.test(topo) && / caixa /.test(topo)) return lerCaixaInformativo(linhasLimpass);
   if (linhasLimpass.some(l => /^Investimentos\s+DT\.REF\s+DT\.VENCTO/i.test(l))) return lerCaixaSaldo(linhasLimpass);
+  if (/ detalhes das debentures /.test(topo)) return lerDebenturesDetalhe(linhasLimpass, inst);
   if (inst === 'Nomad' || linhasLimpass.some(l => /^Nome\s+Tipo\s+Ticker/i.test(l))) return lerNomad(linhasLimpass);
   if (inst === 'Safra') return lerSafra(linhasLimpass);
   if (inst === 'XP') return lerXP(linhasLimpass);

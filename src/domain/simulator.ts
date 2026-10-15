@@ -1,3 +1,4 @@
+import { SALDO_CONTA } from './constants';
 import { S } from './state';
 import { Posicao, MovimentoSimulado } from '../types';
 import { somar, somaSe, investimentos, unidades, contasResumo } from './calculations';
@@ -184,7 +185,7 @@ export function posicaoAtivos(nomes: string[]) {
   const us = unidades('cliente');
   const totalBase = somar(S.posicoes);
   const ativos = nomes.map(nome => {
-    const ps = S.posicoes.filter(p => p.nomeAtivo === nome);
+    const ps = nome === SALDO_CONTA ? S.posicoes.filter(p => p.caixa) : S.posicoes.filter(p => p.nomeAtivo === nome);
     const porCli = new Map<string, number>();
     for (const p of ps) {
       if (p.clienteId) porCli.set(p.clienteId, somaPrecisa(porCli.get(p.clienteId), (p as any)[S.campoValor]));
@@ -194,8 +195,8 @@ export function posicaoAtivos(nomes: string[]) {
     const clientes = [...porCli.entries()].map(([k, x]) => ({ nome: us.get(k)?.nome || k, p: divPrecisa(x, us.get(k)?.pl || 1) }));
     return {
       nome,
-      classe: ps[0]?.classe || '–',
-      subclasse: ps[0]?.subclasse || '–',
+      classe: nome === SALDO_CONTA ? 'Caixa' : ps[0]?.classe || '–',
+      subclasse: nome === SALDO_CONTA ? 'Conta corrente' : ps[0]?.subclasse || '–',
       porCli,
       clientes,
       v,

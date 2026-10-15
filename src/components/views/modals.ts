@@ -1,6 +1,6 @@
 import * as XLSX from 'xlsx';
 import { $ } from '../dom';
-import { esc, norm, num, brl, brlCurto, chaveConta, pct } from '../formatters';
+import { esc, norm, num, brl, brlCurto, chaveConta, pct, nomeProprio, nomeRepetido, rotuloContas, soPrimeiroNome } from '../formatters';
 import { somaLista, somaPrecisa, multPrecisa, arredondarFinanceiro } from '../../domain/precision';
 import { S } from '../../domain/state';
 import { cadastroDe, nomesFamilias, associacoesNovas, clienteDaConta } from '../../domain/calculations';
@@ -228,9 +228,11 @@ export function perguntarDono(ext: ExtratoLido): Promise<any> {
               c =>
                 `<option value="${esc(c.id)}" ${sugerido && sugerido.id === c.id ? 'selected' : ''}>${esc(c.nome)}${
                   c.familiaNome && c.familiaNome !== c.nome ? ` · ${esc(c.familiaNome)}` : ''
-                }</option>`
+                }${nomeRepetido(c.nome, clientes) || soPrimeiroNome(c.nome) ? ` · ${esc(rotuloContas(c.contas))}` : ''}</option>`
             )
-            .join('')}</select></label>`
+            .join('')}</select></label>
+        <label class="opcao sub" id="dono-completo" hidden><span>Nome completo deste cliente</span>
+          <input type="text" name="nomeCompleto" placeholder="ex.: José Carlos da Silva"><small class="muted">A planilha do BTG só traz o primeiro nome: com o nome completo o B.I. não junta pessoas diferentes.</small></label>`
             : ''
         }
         <label class="opcao"><input type="radio" name="modo" value="novo" ${sugerido ? '' : 'checked'}> Novo cliente
@@ -323,6 +325,14 @@ export function perguntarDono(ext: ExtratoLido): Promise<any> {
     f.familia.addEventListener('change', () => {
       f.novaFamilia.hidden = f.familia.value !== '__nova';
     });
+    // Cliente escolhido só com o primeiro nome: pede o nome completo (fica no cadastro das contas dele e deste extrato)
+    const precisaCompleto = () => !!f.cliente && f.modo.value === 'existente' && soPrimeiroNome(S.clientes.get(f.cliente.value)?.nome || '');
+    const verCompleto = () => { const p = precisaCompleto(); const box = $('#dono-completo'); if (box) box.hidden = !p; f.nomeCompleto.required = p; };
+    if (f.cliente) {
+      f.cliente.addEventListener('change', verCompleto);
+      dlg.querySelectorAll('input[name=modo]').forEach(r => r.addEventListener('change', verCompleto));
+      verCompleto();
+    }
     dlg.querySelectorAll('input[name=modo]').forEach(r =>
       r.addEventListener('change', () => {
         if (f.modo.value === 'novo') f.nome.focus();
@@ -368,11 +378,13 @@ export function perguntarDono(ext: ExtratoLido): Promise<any> {
 
       if (f.modo.value === 'existente' && f.cliente) {
         const c = S.clientes.get(f.cliente.value)!;
-        cliente = c.nome;
-        familia = c.familiaNome || null;
+        const completo = soPrimeiroNome(c.nome) ? nomeProprio(f.nomeCompleto.value.trim()) : '';
+        cliente = completo || c.nome;
+        familia = c.familiaNome && !soPrimeiroNome(c.familiaNome) ? c.familiaNome : null;
         for (const ct of c.contas) {
-          if (!cadastroDe(ct)) S.cadExtra.set(chaveConta(ct), { conta: ct, cliente, familia: familia || cliente });
+          if (!cadastroDe(ct) || completo) S.cadExtra.set(chaveConta(ct), { conta: ct, cliente, familia: familia || cliente });
         }
+        if (completo) salvarCadLocal();
       } else {
         cliente = f.nome.value.trim() || ext.clienteSugerido || `Cliente ${cf}`;
         familia = f.familia.value === '__nova' ? f.novaFamilia.value.trim() : f.familia.value;
@@ -427,7 +439,7 @@ export function abrirExtratos() {
     <tr class="ext-btg"><td><b>BTG</b></td><td>${esc(btg.rotulo || '')}</td><td class="sec">${esc(
         btg.arquivo || '–'
       )}</td><td>${esc(btg.dataRef || '–')}</td><td>${esc(quando(btg))}</td><td class="n">${esc(brl(btg.total))}</td>
-    <td class="n" style="white-space:nowrap"><button type="button" class="btn-link" id="ext-atualizar">Atualizar com a pasta</button> · <button type="button" class="btn-link" data-subst="BTG">Substituir</button></td></tr>`
+    <td class="n" style="white-space:nowrap"><button type="button" class="btn-link" id="ext-atualizar">Atualizar com a pasta</button> · <button type="button" class="btn-link" data-subst="BTG">Substituir</button> · <button type="button" class="btn-link" data-rm="BTG">Remover</button></td></tr>`
     : '';
 
   dlg.innerHTML = `<form method="dialog" class="dlg dlg-largo">
@@ -486,7 +498,8 @@ export function abrirExtratos() {
       await anexarExtrato({ inst: s.dataset.subst });
       return;
     }
-    if (r && confirm('Remover este extrato do painel? (O arquivo na pasta não é apagado.)')) {
+    const msg = r?.dataset.rm === 'BTG' ? 'Remover a planilha diária do BTG do painel? (O arquivo na pasta não é apagado.)' : 'Remover este extrato do painel? (O arquivo na pasta não é apagado.)';
+    if (r && confirm(msg)) {
       dlg.close();
       removerFonte(r.dataset.rm!);
     }
@@ -496,6 +509,7 @@ export function abrirExtratos() {
   if (anexarBtn) anexarBtn.onclick = async () => { dlg.close(); await anexarExtrato(); };
   const atualBtn = $('#ext-atualizar');
   if (atualBtn) atualBtn.onclick = async () => { dlg.close(); await atualizarComPasta(); };
+  dlg.onclose = null;
   dlg.showModal();
 }
 
@@ -513,6 +527,7 @@ export function editarCadastro() {
         cli = clienteDaConta(conta),
         p0 = S.posicoes.find(p => p.conta === conta);
       const pl = somaLista(S.posicoes.filter(p => p.conta === conta), p => (p as any)[S.campoValor] || 0);
+      const tit = p0?.titular && !soPrimeiroNome(p0.titular) ? nomeProprio(p0.titular) : '';
       return {
         conta,
         planilha: p0?.nome || '',
@@ -520,6 +535,8 @@ export function editarCadastro() {
         pl,
         cliente: cad?.cliente || '',
         familia: cad?.familia && norm(cad.familia) !== norm(cad.cliente) ? cad.familia : '',
+        descricao: cad?.descricao || '',
+        sugestao: tit,
         atual: cli?.nome || ''
       };
     })
@@ -536,7 +553,7 @@ export function editarCadastro() {
     <h2>Editar cadastro de clientes</h2>
     <p class="sec"><b>Mesma pessoa com duas contas:</b> escreva o mesmo nome em "Cliente". <b>Casal ou família</b> (ex.: marido e esposa, cada um com a sua conta): nomes diferentes em "Cliente" e o <b>mesmo nome em "Família"</b>. Conta sem cliente preenchido continua separada, com o nome da planilha.</p>
     <input type="search" id="cad-busca" placeholder="Buscar conta, nome ou família…" style="width:100%;margin-top:8px">
-    <div class="cad-lista"><table><thead><tr><th>Conta</th><th>Na planilha</th><th class="n">Patrimônio</th><th>Cliente (nome completo)</th><th>Família (opcional)</th></tr></thead><tbody>
+    <div class="cad-lista"><table><thead><tr><th>Conta</th><th>Na planilha</th><th class="n">Patrimônio</th><th>Cliente (nome completo)</th><th>Família (opcional)</th><th title="Aparece no relatório, no quadro de posição por conta">Titular da conta (opcional)</th></tr></thead><tbody>
       ${contas
         .map(
           (c, i) => `<tr data-i="${i}" class="${selContas.has(chaveConta(c.conta)) ? 'cad-sel' : ''}"><td><b>${esc(
@@ -545,7 +562,8 @@ export function editarCadastro() {
             brlCurto(c.pl)
           )}</td>
         <td><input type="text" class="cad-cli" list="cad-pessoas" value="${esc(c.cliente)}" placeholder="${esc(c.atual)}"></td>
-        <td><input type="text" class="cad-fam" list="cad-familias" value="${esc(c.familia)}" placeholder="—"></td></tr>`
+        <td><input type="text" class="cad-fam" list="cad-familias" value="${esc(c.familia)}" placeholder="—"></td>
+        <td><input type="text" class="cad-desc" value="${esc(c.descricao)}" placeholder="${esc(c.sugestao ? c.sugestao + ' — PJ' : 'ex.: Pessoa Física; PJ — Holding')}"></td></tr>`
         )
         .join('')}
     </tbody></table></div>
@@ -562,7 +580,8 @@ export function editarCadastro() {
     tr.classList.toggle(
       'cad-mudou',
       (tr.querySelector('.cad-cli') as HTMLInputElement).value.trim() !== c.cliente ||
-        (tr.querySelector('.cad-fam') as HTMLInputElement).value.trim() !== c.familia
+        (tr.querySelector('.cad-fam') as HTMLInputElement).value.trim() !== c.familia ||
+        (tr.querySelector('.cad-desc') as HTMLInputElement).value.trim() !== c.descricao
     );
   });
 
@@ -586,15 +605,16 @@ export function editarCadastro() {
     corpo.querySelectorAll<HTMLTableRowElement>('tr').forEach(tr => {
       const c = contas[+tr.dataset.i!],
         cli = (tr.querySelector('.cad-cli') as HTMLInputElement).value.trim(),
-        fam = (tr.querySelector('.cad-fam') as HTMLInputElement).value.trim();
-      if (cli === c.cliente && fam === c.familia) return;
+        fam = (tr.querySelector('.cad-fam') as HTMLInputElement).value.trim(),
+        desc = (tr.querySelector('.cad-desc') as HTMLInputElement).value.trim();
+      if (cli === c.cliente && fam === c.familia && desc === c.descricao) return;
       if (!cli) {
         S.cadExtra.delete(chaveConta(c.conta));
         mud.push(`${c.conta} → sem cadastro`);
         return;
       }
-      S.cadExtra.set(chaveConta(c.conta), { conta: c.conta, cliente: cli, familia: fam || cli });
-      mud.push(`${c.conta} → ${cli}${fam ? ` (família ${fam})` : ''}`);
+      S.cadExtra.set(chaveConta(c.conta), { conta: c.conta, cliente: cli, familia: fam || cli, ...(desc ? { descricao: desc } : {}) });
+      mud.push(`${c.conta} → ${cli}${fam ? ` (família ${fam})` : ''}${desc ? ` · titular: ${desc}` : ''}`);
     });
     if (!mud.length) return;
     try {
@@ -833,8 +853,10 @@ export function salvarCadLocal(): void {
   } catch {}
 }
 
+// Ao abrir o painel, esquece no navegador as contas que o grupos.js já tem (o arquivo prevalece)
+// e as associações guardadas só com o primeiro nome (ex.: "Carlos"), que juntavam pessoas diferentes
 export function limparCadLocal(): void {
-  const pendentes = new Set(associacoesNovas().map((c: any) => chaveConta(c.conta)));
+  const pendentes = new Set(associacoesNovas().filter((c: any) => !soPrimeiroNome(c.cliente)).map((c: any) => chaveConta(c.conta)));
   for (const k of [...S.cadExtra.keys()]) {
     if (!pendentes.has(k)) S.cadExtra.delete(k);
   }
