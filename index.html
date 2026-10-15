@@ -2911,6 +2911,10 @@ function renderAtivo() {
   $('#campo-varios').hidden = !varios;
   $('#cartao-sim-ativo').hidden = varios;
   if (varios) {
+    // "Saldo em conta" (conta corrente de cada conta) também pode ser escolhido, como no print de saldos do BTG
+    const cx = S.posicoes.filter(p => p.caixa);
+    if (cx.length) porAtivo.set(SALDO_CONTA, { nome: SALDO_CONTA, classe: 'Caixa', v: somar(cx), contas: new Set(cx.map(p => p.clienteId)) });
+    const ativos = [...porAtivo.values()];
     S.ativosSel = S.ativosSel.filter(n => porAtivo.has(n));
     if (!S.ativosSel.length && porAtivo.has(S.ativo)) S.ativosSel = [S.ativo];
     $('#chips-sel').innerHTML = S.ativosSel.map(n => `<span class="chip-sel">${esc(n)}<button type="button" data-tirar-ativo="${esc(n)}" title="Tirar ${esc(n)}" aria-label="Tirar ${esc(n)}">×</button></span>`).join('');
@@ -2970,16 +2974,17 @@ function renderAtivo() {
 }
 
 /* ---------- Posição de um ou vários ativos: valor por cliente, peso na carteira e diferença para a média ---------- */
+const SALDO_CONTA = 'Saldo em conta';
 function posicaoAtivos(nomes) {
   const us = unidades('cliente'), totalBase = somar(S.posicoes);
   const ativos = nomes.map(nome => {
-    const ps = S.posicoes.filter(p => p.nomeAtivo === nome);
+    const ps = nome === SALDO_CONTA ? S.posicoes.filter(p => p.caixa) : S.posicoes.filter(p => p.nomeAtivo === nome);
     const porCli = new Map();
     for (const p of ps) porCli.set(p.clienteId, somaPrecisa(porCli.get(p.clienteId), valor(p)));
     const v = somaLista([...porCli.values()]);
     const pesos = [...porCli.entries()].map(([k, x]) => divPrecisa(x, us.get(k)?.pl || 1));
     const clientes = [...porCli.entries()].map(([k, x]) => ({ nome: us.get(k)?.nome || k, p: divPrecisa(x, us.get(k)?.pl || 1) }));
-    return { nome, classe: ps[0]?.classe || '–', subclasse: ps[0]?.subclasse || '–', porCli, clientes, v, media: divPrecisa(v, totalBase), nCli: porCli.size,
+    return { nome, classe: nome === SALDO_CONTA ? 'Caixa' : ps[0]?.classe || '–', subclasse: nome === SALDO_CONTA ? 'Conta corrente' : ps[0]?.subclasse || '–', porCli, clientes, v, media: divPrecisa(v, totalBase), nCli: porCli.size,
       pesoMedio: pesos.length ? divPrecisa(somaLista(pesos), pesos.length) : 0, maior: pesos.length ? Math.max(...pesos) : 0,
       maiorNome: clientes.length ? clientes.reduce((a, c) => c.p > a.p ? c : a).nome : '' };
   });
@@ -3730,6 +3735,9 @@ function reconciliar(ext) {
    Quem mudar o código acrescenta uma entrada no topo (data, autor e o que mudou, em linguagem simples).
    Ao abrir uma versão nova, o B.I. registra a atualização no histórico. */
 const VERSOES_BI = [
+  { versao: '2026.10.15b', data: '2026-10-15', autor: 'Vinicius + Claude', mudancas: [
+    'Ativo e alocação → Vários ativos: dá para escolher "Saldo em conta" (conta corrente de cada cliente), com valor, % da carteira e download em Excel/PDF.',
+  ] },
   { versao: '2026.10.15', data: '2026-10-15', autor: 'Vinicius + Claude', mudancas: [
     'Novo leitor de PDF: "Detalhes das Debêntures" (extrato do agente da emissão). Entra o saldo bruto mais recente, com o IR; a conferência abre para escolher instituição, conta, classe e estratégia.',
   ] },
@@ -5401,7 +5409,7 @@ $('#btn-exportar').addEventListener('click', exportarSimulacao);
 segmentado('#seg-modo-ativo', v => { S.ativoModo = v; render(); });
 $('#busca-varios').addEventListener('change', e => {
   const v = e.target.value.trim(); if (!v) return;
-  const achado = S.posicoes.find(p => norm(p.nomeAtivo) === norm(v));
+  const achado = norm(v) === norm(SALDO_CONTA) ? { nomeAtivo: SALDO_CONTA } : S.posicoes.find(p => norm(p.nomeAtivo) === norm(v));
   if (achado && !S.ativosSel.includes(achado.nomeAtivo)) S.ativosSel.push(achado.nomeAtivo);
   e.target.value = ''; render(); $('#busca-varios').focus();
 });
