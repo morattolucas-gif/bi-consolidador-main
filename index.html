@@ -2898,8 +2898,12 @@ function renderAtivo() {
   const ativos = [...porAtivo.values()];
   if (!S.ativo) S.ativo = ativos.sort((a, b) => b.v - a.v)[0]?.nome || '';
   const classes = ordenadoDesc(somarPor(inv, p => p.classe)).map(([k]) => k);
-  const existeNaLista = porAtivo.has(S.ativo);
+  // "Saldo em conta" (conta corrente de cada conta) vem em primeiro lugar, como no print de saldos do BTG
+  const cx = S.posicoes.filter(p => p.caixa);
+  const saldo = cx.length ? { nome: SALDO_CONTA, classe: 'Caixa', v: somar(cx), contas: new Set(cx.map(p => p.clienteId)) } : null;
+  const existeNaLista = porAtivo.has(S.ativo) || (saldo && S.ativo === SALDO_CONTA);
   $('#sel-ativo').innerHTML = (existeNaLista ? '' : `<option value="${esc(S.ativo)}">${esc(S.ativo)} (ativo novo)</option>`) +
+    (saldo ? `<optgroup label="Caixa"><option value="${SALDO_CONTA}">${SALDO_CONTA} — ${esc(brlCurto(saldo.v))} · ${saldo.contas.size} cliente(s)</option></optgroup>` : '') +
     classes.map(cl => `<optgroup label="${esc(cl)}">` + ativos.filter(a => a.classe === cl).sort((a, b) => b.v - a.v)
       .map(a => `<option value="${esc(a.nome)}">${esc(a.nome)} — ${esc(brlCurto(a.v))} · ${a.contas.size} cliente(s)</option>`).join('') + '</optgroup>').join('');
   $('#sel-ativo').value = S.ativo;
@@ -2909,16 +2913,24 @@ function renderAtivo() {
   document.querySelectorAll('#seg-modo-ativo button').forEach(b => b.setAttribute('aria-pressed', b.dataset.v === S.ativoModo));
   $('#campo-um-ativo').hidden = $('#campo-novo-ativo').hidden = varios;
   $('#campo-varios').hidden = !varios;
-  $('#cartao-sim-ativo').hidden = varios;
+  const soSaldo = !varios && S.ativo === SALDO_CONTA && saldo;
+  $('#cartao-sim-ativo').hidden = varios || soSaldo;
+  if (soSaldo) {
+    // Saldo em conta no modo "um ativo": só a posição por cliente (o simulador de % alvo não se aplica ao caixa)
+    $('#chips-ativo').innerHTML = '<span class="chip">Classe <b>Caixa</b></span><span class="chip">Conta corrente de cada conta, na data da planilha</span>';
+    const R = renderPosicao([SALDO_CONTA]), a = R.ativos[0];
+    $('#cartao-posicao').hidden = false;
+    $('#kpi-ativo').innerHTML = kpi('Total na base', brlCurto(a.v), `${pct(a.media, 2)} do patrimônio da base`, brl(a.v)) +
+      kpi('Clientes com posição', `${a.nCli} de ${R.nClientes}`) + kpi('Peso médio (quem tem)', pct(a.pesoMedio, 2)) + kpi('Maior peso', pct(a.maior, 2), a.maiorNome);
+    return;
+  }
   if (varios) {
-    // "Saldo em conta" (conta corrente de cada conta) também pode ser escolhido, como no print de saldos do BTG
-    const cx = S.posicoes.filter(p => p.caixa);
-    if (cx.length) porAtivo.set(SALDO_CONTA, { nome: SALDO_CONTA, classe: 'Caixa', v: somar(cx), contas: new Set(cx.map(p => p.clienteId)) });
+    if (saldo) porAtivo.set(SALDO_CONTA, saldo);
     const ativos = [...porAtivo.values()];
     S.ativosSel = S.ativosSel.filter(n => porAtivo.has(n));
     if (!S.ativosSel.length && porAtivo.has(S.ativo)) S.ativosSel = [S.ativo];
     $('#chips-sel').innerHTML = S.ativosSel.map(n => `<span class="chip-sel">${esc(n)}<button type="button" data-tirar-ativo="${esc(n)}" title="Tirar ${esc(n)}" aria-label="Tirar ${esc(n)}">×</button></span>`).join('');
-    $('#lista-ativos').innerHTML = ativos.filter(a => !S.ativosSel.includes(a.nome)).sort((a, b) => b.v - a.v).map(a => `<option value="${esc(a.nome)}">${esc(a.classe)} · ${esc(brlCurto(a.v))}</option>`).join('');
+    $('#lista-ativos').innerHTML = ativos.filter(a => !S.ativosSel.includes(a.nome)).sort((a, b) => (b.nome === SALDO_CONTA) - (a.nome === SALDO_CONTA) || b.v - a.v).map(a => `<option value="${esc(a.nome)}">${esc(a.classe)} · ${esc(brlCurto(a.v))}</option>`).join('');
     $('#chips-ativo').innerHTML = S.ativosSel.length ? '' : '<span class="chip">Digite no campo acima para escolher os ativos.</span>';
     const R = S.ativosSel.length ? renderPosicao(S.ativosSel) : null;
     $('#cartao-posicao').hidden = !R;
@@ -3736,7 +3748,7 @@ function reconciliar(ext) {
    Ao abrir uma versão nova, o B.I. registra a atualização no histórico. */
 const VERSOES_BI = [
   { versao: '2026.10.15b', data: '2026-10-15', autor: 'Vinicius + Claude', mudancas: [
-    'Ativo e alocação → Vários ativos: dá para escolher "Saldo em conta" (conta corrente de cada cliente), com valor, % da carteira e download em Excel/PDF.',
+    'Ativo e alocação: "Saldo em conta" (conta corrente de cada cliente) é o primeiro da lista, em "Um ativo" e em "Vários ativos", com valor, % da carteira e download em Excel/PDF.',
   ] },
   { versao: '2026.10.15', data: '2026-10-15', autor: 'Vinicius + Claude', mudancas: [
     'Novo leitor de PDF: "Detalhes das Debêntures" (extrato do agente da emissão). Entra o saldo bruto mais recente, com o IR; a conferência abre para escolher instituição, conta, classe e estratégia.',
