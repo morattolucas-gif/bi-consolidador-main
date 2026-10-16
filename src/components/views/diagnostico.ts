@@ -30,7 +30,8 @@ import {
   soPrimeiroNome,
   valor
 } from '../formatters';
-import { IMG_P_CAPA, IMG_BTG_CAPA } from './report-assets';
+import { IMG_P_CAPA, IMG_BTG_CAPA, IMG_LOGO_PADRAO } from './report-assets';
+import { DIAG_REPORT_CSS } from '../../styles/report-styles';
 
 // --- Diagnóstico e Enriquecimento de Ativos ---
 // De-para de ativos já identificados (seção 4.4 do padrão)
@@ -1015,11 +1016,7 @@ export function gerarRelatorio() {
 // HTML completo do relatório (capa + seções escolhidas). previa = sem impressão automática, com as páginas separadas na tela
 export function htmlRelatorio(secoes, previa) {
   const r = S.rel;
-  // Reaproveita o CSS do diagnóstico que está nesta página
-  const css = [...document.querySelectorAll('style')].map(s => s.textContent).join('\n');
-  const ini = css.indexOf('/* ---------- Diagnóstico de alocação'), fim = css.indexOf('/* ---------- Fontes carregadas');
-  const cssDiag = ini >= 0 && fim > ini ? css.slice(ini, fim) : '';
-  const logo = (document.querySelector('.logo') as HTMLImageElement)?.src || '';
+  const logo = (document.querySelector('.logo') as HTMLImageElement)?.src || IMG_LOGO_PADRAO;
   const data = dataBR(r.base);
   const titulo = r.tipo === 'familia' ? `Família ${r.nome}`.replace(/^Família Família/i, 'Família') : r.nome;
   const para = r.tipo === 'familia' ? `${titulo} — ${r.titulares.map(t => t.split(' ')[0]).join(', ')}` : r.nome;
@@ -1031,7 +1028,7 @@ export function htmlRelatorio(secoes, previa) {
 <title>Diagnostico_Alocacao_${esc(r.nome.replace(/\s+/g, '_'))}_${data.replace(/\//g, '-')}</title>
 <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
-${cssDiag}
+${DIAG_REPORT_CSS}
 @page { size: A4 landscape; margin: 9mm 11mm; }
 * { box-sizing: border-box; }
 html, body { margin: 0; background: #fff; color: #1B2432; font-family: "Manrope", "Segoe UI", Arial, sans-serif; font-variant-numeric: tabular-nums lining-nums; -webkit-print-color-adjust: exact; print-color-adjust: exact; }

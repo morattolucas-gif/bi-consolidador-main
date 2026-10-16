@@ -17,6 +17,8 @@ import { miniBarra, calor } from '../charts';
 import { tabela, tabelaDG } from '../dom';
 import { celUnidade, attrUnidade } from './carteira';
 import { registrar } from '../../domain/storage';
+import { IMG_LOGO_PADRAO } from './report-assets';
+import { DIAG_REPORT_CSS } from '../../styles/report-styles';
 
 export function infoAtivo() {
   const doAtivo = S.posicoes.filter(p => norm(p.nomeAtivo) === norm(S.ativo));
@@ -298,11 +300,7 @@ export function pdfPosicao() {
   if (!nomes.length) return;
   const R = posicaoAtivos(nomes),
     varios = nomes.length > 1;
-  const css = [...document.querySelectorAll('style')].map(s => s.textContent).join('\n');
-  const ini = css.indexOf('/* ---------- Diagnóstico de alocação'),
-    fim = css.indexOf('/* ---------- Fontes carregadas');
-  const cssDiag = ini >= 0 && fim > ini ? css.slice(ini, fim) : '';
-  const logo = (document.querySelector('.logo') as HTMLImageElement)?.src || '';
+  const logo = (document.querySelector('.logo') as HTMLImageElement)?.src || IMG_LOGO_PADRAO;
   const hoje = new Date().toLocaleDateString('pt-BR');
   const linhas = [...R.linhas].sort((a, b) => b.total - a.total);
   const difTxt = (d: number) => `${d >= 0 ? '+' : ''}${num(d * 100, 2)} p.p.`;
@@ -361,7 +359,7 @@ export function pdfPosicao() {
     varios ? nomes.length + '_ativos' : nomes[0]
   )}_${hoje.replace(/\//g, '-')}</title>
 <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<style>${cssDiag}
+<style>${DIAG_REPORT_CSS}
 @page { size: A4 landscape; margin: 9mm 11mm; }
 * { box-sizing: border-box; }
 html, body { margin: 0; background: #fff; color: #0E1726; font-family: "Manrope", "Segoe UI", Arial, sans-serif; font-variant-numeric: tabular-nums lining-nums; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
