@@ -282,7 +282,7 @@ export function donutDG(dados, centro, total) {
 export const rsDG = v => brl(v);
 export const pcDG = v => pct(v, 2);
 export const nAtivos = n => `${n} ${n === 1 ? 'ativo' : 'ativos'}`;
-export const secaoDG = (n, titulo, sub, corpo, grupo = '') => `<section class="rel-sec" data-grupo="${grupo}"><div class="rel-cab"><span class="rel-num">${n}</span><div><h2 class="rel-h2">${esc(titulo)}</h2><p class="rel-sub">${esc(sub)}</p></div></div>${corpo}</section>`;
+export const secaoDG = (n, titulo, sub, corpo, grupo = '') => `<section class="rel-sec${grupo === 'consolidacao_integrada' ? ' sec-apenas-rel' : ''}" data-grupo="${grupo}"${grupo === 'consolidacao_integrada' ? ' style="display:none"' : ''}><div class="rel-cab"><span class="rel-num">${n}</span><div><h2 class="rel-h2">${esc(titulo)}</h2><p class="rel-sub">${esc(sub)}</p></div></div>${corpo}</section>`;
 // Caixa de leitura: a análise em prosa curta que fecha cada bloco (seção 7 do padrão)
 export const obsDG = (textos, titulo = 'Leitura', max = 3) => {
   const t = textos.filter(Boolean).slice(0, max);
@@ -500,6 +500,56 @@ export function renderDiag(s: any, P: any[]) {
       : `<div class="dg-2col dg-auto bloco-dg">${bl('top', 'Oito maiores posições', true, `<div class="box-k">Oito maiores posições</div>${tab8}`)}`
         + bl('contraparte', 'Visão por contraparte', true, `<div class="box-k">Visão por contraparte <span class="bk-x">de quem é o risco</span></div>${tabCp}`) + '</div>';
     sec('Consolidação Patrimonial', multiInst ? 'Onde o patrimônio está custodiado, de quem é cada carteira e como cada classe se divide entre as instituições.' : multi ? `Como o patrimônio se divide entre ${porFamilia ? 'os titulares' : 'as contas'} e de quem é o risco de cada real.` : 'O tamanho da carteira, onde ela está e de quem é o risco de cada real.', corpo);
+  }
+
+  /* 01b — Consolidação Patrimonial (Integrada: Custódia + Rosca e Classes) */
+  grupo('consolidacao_integrada', 'Consolidação Patrimonial (Integrada: Custódia + Rosca e Classes)', false);
+  {
+    const usdTot = somaLista(L, x => x.p.usd);
+    let k = kpiDG('Patrimônio consolidado', rsDG(total), `${brutos.length} posições • ${contas.length} ${contas.length === 1 ? 'conta' : 'contas'}${insts.length > 1 ? ' em ' + insts.join(', ') : ''}${vTransito ? ` • + ${rsDG(vTransito)} em trânsito, fora da análise` : ''}`, 'main');
+    const tops = multi ? titulares.slice(0, titulares.length > 2 ? 1 : 2) : [];
+    for (const t of tops) k += kpiDG(rotTit(t.k), rsDG(t.v), `${pcT(t.v)} • ${[...new Set(t.itens.map(x => x.p.conta))].map(c => 'conta ' + c).join(', ')}`, '', t.v / total);
+    if (multi && titulares.length > 2) k += kpiDG(porFamilia ? 'Clientes' : 'Contas', String(titulares.length), titulares.map(t => curto(t.k)).join(', '));
+    if (!multi) k += kpiDG('Classes de ativo', String(classes.length), `maior: ${CLASSES_EST[classes[0].k]} (${pcT(classes[0].v)})`);
+    if (!multi && !vPrev) k += kpiDG('Instituições', String(insts.length), insts.map(i => i === 'BTG' ? 'BTG Pactual' : i).join(', '));
+    k += vPrev && !intl ? kpiDG('Previdência', pcT(vPrev), `${rsDG(vPrev)} • ${nPlanos} ${nPlanos === 1 ? 'plano' : 'planos'}`, '', vPrev / total)
+               : kpiDG('Exposição internacional', pcT(intl), intl ? `${rsDG(intl)}${usdTot ? ` • US$ ${num(usdTot)} no exterior` : ''}` : 'Carteira 100% Brasil, 100% em reais');
+
+    // Onde o Patrimônio está Custodiado: Tabela detalhando instituição, número da conta, titular (PF ou PJ/Holding), data-base, valor financeiro e % da carteira
+    const porConta = agruparDG(L, x => x.p.conta);
+    const titularConta = (g: any) => {
+      const p = g.itens[0].p, d = S.descConta?.get(g.k);
+      if (d) return /^(pessoa f|pf$)/i.test(d) ? `${p.clienteNome} — PF` : /^PJ\s*[—-]/i.test(d) ? d.replace(/^PJ\s*[—-]\s*/i, '') + ' — PJ' : d;
+      const t = p.titular || p.nome;
+      return t && !soPrimeiroNome(t) && norm(t) !== norm(p.clienteNome) ? nomeProprio(t) : p.clienteNome;
+    };
+    const dataConta = (g: any) => { const dt = g.itens.map((x: any) => x.p.data).filter(Boolean); return dt.length ? dataBR(new Date(Math.max(...dt))) : '—'; };
+    const tabCustodia = tabelaDG([
+      { rot: 'Instituição', w: '16%', l: 1, f: (g: any) => esc(NOME_INST[g.itens[0].p.instituicao] || g.itens[0].p.instituicao) },
+      { rot: 'Conta', w: '14%', l: 1, f: (g: any) => esc(String(g.k).replace(new RegExp('^' + g.itens[0].p.instituicao + '\\s+'), '')) },
+      { rot: 'Titular', w: '30%', l: 1, f: (g: any) => `<span class="nm">${esc(titularConta(g))}</span>` },
+      { rot: 'Data-base', w: '12%', l: 1, f: (g: any) => dataConta(g) },
+      { rot: 'Valor (R$)', w: '16%', f: (g: any) => rsDG(g.v) },
+      { rot: '% cart.', w: '12%', f: (g: any) => pcT(g.v) },
+    ], porConta, ['TOTAL CONSOLIDADO', `${porConta.length} ${porConta.length === 1 ? 'conta' : 'contas'}`, '', '', rsDG(total), '100,00%']);
+
+    // Gráfico Donut (Rosca) e Tabela de Classes
+    const positivas = classes.filter(c => c.v > 0);
+    const somaPos = somaLista(positivas, c => c.v);
+    const rosca = donutDG(positivas.map(c => ({ pct: divPrecisa(c.v, somaPos) * 100, cor: cor.get(c.k), rot: CLASSES_EST[c.k] })), multi ? 'Consolidado' : 'Carteira', brlCurto(total).replace(/ mi$/, ' MM'));
+    const tabClasses = tabelaDG([
+      { rot: 'Classe estratégica', w: '26%', l: 1, f: c => `${sw(c.k)}<span class="nm">${esc(CLASSES_EST[c.k])}</span>` },
+      { rot: 'Valor (R$)', w: '17%', f: c => rsDG(c.v) },
+      { rot: '%', w: '9%', f: c => pcT(c.v) },
+      { rot: 'Nº', w: '6%', f: c => c.itens.length },
+      { rot: 'Composição', w: '42%', l: 1, cls: 'ativos', f: c => listaNomes(c.itens) },
+    ], classes, ['TOTAL CONSOLIDADO', rsDG(total), '100,00%', L.length, `${contas.length} ${contas.length === 1 ? 'conta' : 'contas'} • ${insts.map(i => i === 'BTG' ? 'BTG Pactual' : i).join(', ')}`]);
+
+    let corpoInt = `<div class="kpis-dg">${k}</div>` +
+      bl('custodia', 'Onde o patrimônio está custodiado', true, `<div class="box-k bloco-dg">Onde o patrimônio está custodiado <span class="bk-x">instituição, conta, titular e data-base</span></div>${tabCustodia}`) +
+      bl('classes', 'Alocação por classe estratégica (Donut e Tabela)', true, `<div class="box-k bloco-dg">Alocação por classe estratégica <span class="bk-x">visão consolidada com look-through</span></div><div class="dg-classe"><div class="dg-rosca">${rosca}</div><div>${tabClasses}</div></div>`);
+
+    sec('Consolidação Patrimonial', 'Visão consolidada da carteira: onde o patrimônio está custodiado e alocação estratégica por classe.', corpoInt);
   }
 
   /* 02 — Alocação por classe estratégica */
@@ -913,6 +963,7 @@ export function renderDiag(s: any, P: any[]) {
 export function secoesRelatorio(sel: Set<string>): string {
   const caixa = document.createElement('div');
   caixa.innerHTML = [...$('#diag').querySelectorAll('.rel-sec')].filter(s => sel.has((s as HTMLElement).dataset.grupo || '')).map(s => s.outerHTML).join('');
+  caixa.querySelectorAll('.rel-sec').forEach(s => { (s as HTMLElement).style.display = ''; });
   caixa.querySelectorAll('[data-bloco]').forEach(b => {
     const g = (b.closest('.rel-sec') as HTMLElement)?.dataset?.grupo;
     if (!sel.has(`${g}:${(b as HTMLElement).dataset.bloco}`)) b.remove();
@@ -934,11 +985,39 @@ export function gerarRelatorio() {
     const it = b || g;
     return `<label><input type="checkbox" data-k="${chave(g, b)}" ${it.padrao ? 'checked' : ''}><span>${esc(it.rot)}</span>${it.padrao ? '' : '<span class="tag-op">opcional</span>'}</label>`;
   };
+
+  const gSec1Classica = itens.find((x: any) => x.id === 'consolidacao');
+  const gSec1Integrada = itens.find((x: any) => x.id === 'consolidacao_integrada');
+  const outrosItens = itens.filter((x: any) => x.id !== 'consolidacao' && x.id !== 'consolidacao_integrada');
+
   dlg.innerHTML = `<form method="dialog" class="dlg dlg-rel">
     <div class="filtro">
       <h2>Montar relatório</h2>
       <p class="sec">Marque o que vai no PDF. Os itens padrão já vêm marcados; os opcionais podem ser incluídos.</p>
-      <div class="filtro-lista">${itens.map((g: any) => `<div class="it-grupo">${linhaItem(g)}${g.blocos.map((b: any) => `<div class="it-bloco">${linhaItem(g, b)}</div>`).join('')}</div>`).join('')}</div>
+      <div class="filtro-lista">
+        <div class="it-grupo it-sec1-choice" style="border: 1px solid #CBD6E3; border-radius: 8px; padding: 10px 12px; margin-bottom: 12px; background: #F8FAFD;">
+          <div style="font-weight: 700; font-size: 11px; color: #0A1F44; text-transform: uppercase; letter-spacing: .08em; margin-bottom: 8px;">Modelo da Seção 1 (Consolidação)</div>
+          <div style="display: flex; flex-direction: column; gap: 8px;">
+            <label style="display: flex; align-items: flex-start; gap: 8px; cursor: pointer;">
+              <input type="radio" name="sec1_tipo" value="consolidacao" checked style="margin-top: 2px;">
+              <span><b>Modelo Clássico:</b> Custódia, Classes em barras e Maiores posições</span>
+            </label>
+            <label style="display: flex; align-items: flex-start; gap: 8px; cursor: pointer;">
+              <input type="radio" name="sec1_tipo" value="consolidacao_integrada" style="margin-top: 2px;">
+              <span><b>Modelo Integrado:</b> Custódia, Rosca Donut &amp; Tabela de Classes <span class="tag-op" style="background:#0A1F44;color:#fff;margin-left:4px;">Novo</span></span>
+            </label>
+          </div>
+          <div id="sub-sec1-classica" style="margin-top: 8px; padding-left: 12px; border-top: 1px solid #E2EAF4; padding-top: 6px;">
+            ${gSec1Classica ? gSec1Classica.blocos.map((b: any) => `<div class="it-bloco">${linhaItem(gSec1Classica, b)}</div>`).join('') : ''}
+          </div>
+          <div id="sub-sec1-integrada" style="margin-top: 8px; padding-left: 12px; border-top: 1px solid #E2EAF4; padding-top: 6px;" hidden>
+            ${gSec1Integrada ? gSec1Integrada.blocos.map((b: any) => `<div class="it-bloco">${linhaItem(gSec1Integrada, b)}</div>`).join('') : ''}
+          </div>
+          <input type="checkbox" data-k="consolidacao" checked hidden>
+          <input type="checkbox" data-k="consolidacao_integrada" hidden>
+        </div>
+        ${outrosItens.map((g: any) => `<div class="it-grupo">${linhaItem(g)}${g.blocos.map((b: any) => `<div class="it-bloco">${linhaItem(g, b)}</div>`).join('')}</div>`).join('')}
+      </div>
       <div class="paginas" id="rel-paginas"></div>
       <div class="dlg-botoes" style="flex-wrap:wrap">
         <button type="button" class="btn" id="rel-padrao">Restaurar padrão</button>
@@ -961,8 +1040,8 @@ export function gerarRelatorio() {
   };
   let pos = 0;
   const atualizar = () => {
-    dlg.querySelectorAll('.it-grupo').forEach(g => {
-      const on = (g.querySelector(':scope > label input') as HTMLInputElement).checked;
+    dlg.querySelectorAll('.it-grupo:not(.it-sec1-choice)').forEach(g => {
+      const on = (g.querySelector(':scope > label input') as HTMLInputElement)?.checked;
       g.querySelectorAll('.it-bloco input').forEach(c => { (c as HTMLInputElement).disabled = !on; });
     });
     try { pos = ifr.contentWindow?.scrollY || 0; } catch { pos = 0; }
@@ -977,6 +1056,34 @@ export function gerarRelatorio() {
     } catch { /* prévia sem acesso: segue sem a contagem */ }
   });
   dlg.querySelector('.filtro-lista')?.addEventListener('change', atualizar);
+
+  const radsSec1 = dlg.querySelectorAll('input[name="sec1_tipo"]');
+  radsSec1.forEach(rInput => {
+    rInput.addEventListener('change', (e: Event) => {
+      const v = (e.target as HTMLInputElement).value;
+      const chkClassica = dlg.querySelector('input[data-k="consolidacao"]') as HTMLInputElement;
+      const chkIntegrada = dlg.querySelector('input[data-k="consolidacao_integrada"]') as HTMLInputElement;
+      const chkClasses = dlg.querySelector('input[data-k="classes"]') as HTMLInputElement;
+      const subClassica = dlg.querySelector('#sub-sec1-classica') as HTMLElement;
+      const subIntegrada = dlg.querySelector('#sub-sec1-integrada') as HTMLElement;
+
+      if (v === 'consolidacao_integrada') {
+        if (chkClassica) chkClassica.checked = false;
+        if (chkIntegrada) chkIntegrada.checked = true;
+        if (chkClasses) chkClasses.checked = false; // Donut e Classes já estão na Seção 1 Integrada
+        if (subClassica) subClassica.hidden = true;
+        if (subIntegrada) subIntegrada.hidden = false;
+      } else {
+        if (chkClassica) chkClassica.checked = true;
+        if (chkIntegrada) chkIntegrada.checked = false;
+        if (chkClasses) chkClasses.checked = true;
+        if (subClassica) subClassica.hidden = false;
+        if (subIntegrada) subIntegrada.hidden = true;
+      }
+      atualizar();
+    });
+  });
+
   const aoX = (e: MessageEvent) => {
     if (e.source !== ifr.contentWindow || !e.data?.tirarRel) return;
     const c = dlg.querySelector(`input[data-k="${CSS.escape(e.data.tirarRel)}"]`) as HTMLInputElement;
@@ -987,10 +1094,23 @@ export function gerarRelatorio() {
   const padraoBtn = $('#rel-padrao') as HTMLElement;
   if (padraoBtn) {
     padraoBtn.onclick = () => {
+      const radClassica = dlg.querySelector('input[name="sec1_tipo"][value="consolidacao"]') as HTMLInputElement;
+      if (radClassica) radClassica.checked = true;
+      const chkClassica = dlg.querySelector('input[data-k="consolidacao"]') as HTMLInputElement;
+      if (chkClassica) chkClassica.checked = true;
+      const chkIntegrada = dlg.querySelector('input[data-k="consolidacao_integrada"]') as HTMLInputElement;
+      if (chkIntegrada) chkIntegrada.checked = false;
+      const subClassica = dlg.querySelector('#sub-sec1-classica') as HTMLElement;
+      const subIntegrada = dlg.querySelector('#sub-sec1-integrada') as HTMLElement;
+      if (subClassica) subClassica.hidden = false;
+      if (subIntegrada) subIntegrada.hidden = true;
+
       dlg.querySelectorAll('input[data-k]').forEach(c => {
         const input = c as HTMLInputElement;
         const [g, b] = (input.dataset.k || '').split(':'), gr = itens.find((x: any) => x.id === g);
-        input.checked = b ? gr?.blocos.find((x: any) => x.id === b)?.padrao : gr?.padrao;
+        if (g === 'consolidacao') input.checked = b ? gr?.blocos.find((x: any) => x.id === b)?.padrao : true;
+        else if (g === 'consolidacao_integrada') input.checked = b ? gr?.blocos.find((x: any) => x.id === b)?.padrao : false;
+        else input.checked = b ? gr?.blocos.find((x: any) => x.id === b)?.padrao : gr?.padrao;
       });
       atualizar();
     };
