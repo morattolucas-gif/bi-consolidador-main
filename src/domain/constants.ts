@@ -104,6 +104,9 @@ export const CHAVE_VERSAO = 'bi-base-clientes:versao-vista';
 export const CHAVE_POLITICAS = 'bi-base-clientes:politicas-investimento';
 
 export const VERSOES_BI = [
+  { versao: '2026.10.19', data: '2026-10-19', autor: 'Vinicius + Claude', mudancas: [
+    'Casas gestoras: Carbyne, BRM e Apex aparecem juntas numa linha só ("Carbyne / BRM / Apex").',
+  ] },
   { versao: '2026.10.15c', data: '2026-10-15', autor: 'Vinicius + Claude', mudancas: [
     'Versão unificada no repositório bi-consolidador-main: as melhorias de 14 e 15/10 entram na estrutura Vite + TypeScript.',
     'A barra acima das abas voltou: planilha do BTG carregada (arquivo, posição, lida em) com Extratos, Políticas, Atualizar com a pasta e + Anexar extrato.',

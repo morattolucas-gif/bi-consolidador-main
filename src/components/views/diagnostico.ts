@@ -55,10 +55,10 @@ export const DEPARA = [
 export const GESTORAS = [
   [/\bBTG\b/, 'BTG Pactual'], [/\bITAU\b|\bIT NOW\b/, 'Itaú Asset'], [/ISHARES|BLACKROCK/, 'BlackRock / iShares'], [/\bJGP/, 'JGP'],
   [/CAPITANIA/, 'Capitânia'], [/GALAPAGOS/, 'Galapagos Capital'], [/JIVE/, 'JiveMauá BossaNova'], [/\bZION\b/, 'Zion Capital'],
-  [/\bAPEX\b/, 'Apex'], [/PIGNOLA/, 'Pignola'], [/CONTEA/, 'Contea'], [/CARBYNE|\bBRM\b/, 'Carbyne / BRM'], [/\bSEVEN\b/, 'Seven'],
+  [/\bAPEX\b/, 'Carbyne / BRM / Apex'], [/PIGNOLA/, 'Pignola'], [/CONTEA/, 'Contea'], [/CARBYNE|\bBRM\b/, 'Carbyne / BRM / Apex'], [/\bSEVEN\b/, 'Seven'],
   [/\bLCP\b/, 'LCP'], [/KAPITALO/, 'Kapitalo'], [/\bSAF\b|SAFRA/, 'Safra Asset'], [/\bTREND\b/, 'XP Asset (Trend)'], [/DANTE|SINGULAR/, 'Dante / Singular'],
   [/\bSORI\b/, 'Sori'], [/KINEA/, 'Kinea'], [/\bSPX\b/, 'SPX'], [/\bVERDE\b/, 'Verde'], [/LEGACY/, 'Legacy'], [/\bARX\b/, 'ARX'],
-  [/AZ QUEST/, 'AZ Quest'], [/SPARTA/, 'Sparta'], [/VINCI/, 'Vinci'], [/PATRIA/, 'Pátria'], [/\bXP\b/, 'XP Asset'], [/ELUJA/, 'BRM Apex'],
+  [/AZ QUEST/, 'AZ Quest'], [/SPARTA/, 'Sparta'], [/VINCI/, 'Vinci'], [/PATRIA/, 'Pátria'], [/\bXP\b/, 'XP Asset'], [/ELUJA/, 'Carbyne / BRM / Apex'],
   [/VANGUARD/, 'Vanguard'], [/INVESCO/, 'Invesco'], [/SCHWAB/, 'Charles Schwab'], [/JPMORGAN/, 'JPMorgan'], [/SPDR|STATE STREET/, 'State Street'], [/SULAMERICA/, 'SulAmérica'],
 ];
 export const SEM_ACENTO = s => String(s ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase();
