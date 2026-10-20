@@ -295,11 +295,28 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
 .chip b { color: var(--ink); }
 .campo input[type="number"] { width: 130px; }
 
-/* ---------- Estado vazio / erro ---------- */
-.vazio { max-width: 640px; margin: 48px auto; text-align: center; }
-.drop { border: 2px dashed var(--axis); border-radius: 16px; padding: 44px 20px; background: var(--surface); cursor: pointer; }
+/* ---------- Estado vazio / erro (Bifurcação Posição Diária vs Extrato Fechado) ---------- */
+.vazio { max-width: 760px; margin: 40px auto; text-align: center; padding: 0 16px; }
+.vazio-cab { margin-bottom: 24px; text-align: center; }
+.vazio-cab h2 { font-size: 20px; font-weight: 800; color: var(--ink); margin-bottom: 6px; }
+.vazio-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-bottom: 20px; text-align: left; }
+@media (max-width: 680px) { .vazio-grid { grid-template-columns: 1fr; } }
+.vazio-card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 22px 20px; display: flex; flex-direction: column; box-shadow: 0 2px 12px rgba(4, 20, 45, 0.04); transition: transform .15s, border-color .15s, box-shadow .15s; }
+.vazio-card:hover { transform: translateY(-2px); border-color: var(--s1); box-shadow: 0 6px 20px rgba(4, 20, 45, 0.08); }
+.vazio-card-badge { display: inline-block; align-self: flex-start; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; padding: 3px 8px; border-radius: 999px; background: #E8EEF6; color: #1F4E87; margin-bottom: 12px; }
+.vazio-card-badge.badge-oficial { background: #DCE7F4; color: #0A1F44; }
+.vazio-card-icon { font-size: 26px; margin-bottom: 8px; }
+.vazio-card h3 { font-size: 16px; font-weight: 700; color: var(--ink); margin: 0 0 6px; }
+.vazio-card p { font-size: 13px; color: var(--ink-2); line-height: 1.45; margin: 0 0 16px; flex: 1; }
+.vazio-card button { width: 100%; justify-content: center; padding: 8px 14px; font-weight: 650; }
+.drop { border: 2px dashed var(--axis); border-radius: 12px; padding: 18px 20px; background: var(--surface-2); cursor: pointer; text-align: center; margin-bottom: 16px; font-size: 13px; color: var(--ink-2); transition: border-color .15s; }
 .drop.ativo, body.arrastando .drop { border-color: var(--link); background: color-mix(in srgb, var(--link) 6%, var(--surface)); }
-.drop h2 { font-size: 17px; margin-bottom: 6px; }
+.vazio-acoes-sec { display: flex; align-items: center; justify-content: center; gap: 12px; flex-wrap: wrap; font-size: 13px; margin-top: 10px; }
+.vazio-acoes-sec .separador { color: var(--muted); }
+.info-anexo-box { background: #F1F5F9; border-left: 3px solid #0A1F44; padding: 10px 14px; border-radius: 6px; font-size: 12.5px; line-height: 1.45; color: #1E293B; margin-bottom: 14px; }
+.dlg-modo-wrap { margin-bottom: 14px; }
+.seg-largo { width: 100%; display: flex; }
+.seg-largo button { flex: 1; text-align: center; font-size: 12.5px; padding: 7px 12px; font-weight: 600; }
 .erro { background: color-mix(in srgb, var(--crit) 10%, var(--surface)); border: 1px solid color-mix(in srgb, var(--crit) 40%, transparent); padding: 10px 14px; border-radius: 8px; margin-bottom: 16px; }
 .faixa-exemplo { background: var(--surface); border-left: 4px solid var(--marca); padding: 8px 14px; border-radius: 6px; margin-bottom: 16px; font-size: 13px; box-shadow: 0 0 0 1px var(--border); }
 

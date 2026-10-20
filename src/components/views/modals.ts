@@ -22,46 +22,109 @@ export const INSTITUICOES = [
   ['Rhino', 'Rhino Securitizadora']
 ];
 
-export function dicaAnexo(inst: string, tipo: string): string {
+export function dicaAnexo(inst: string, tipo: string, modo: 'posicao' | 'extrato' = 'extrato'): string {
+  if (modo === 'posicao') {
+    if (inst === 'BTG') return 'Planilha consolidada da base inteira (relatório "Posição" do BTG Pactual). Atualiza todas as contas, saldos correntes e o enquadramento na política.';
+    return 'Planilha Excel com as posições de clientes. <button type="button" class="btn-link" data-acao="modelo">Baixar o modelo padrão</button>';
+  }
   if (tipo === 'foto') return 'Print ou foto legível do aplicativo ou do extrato. O painel lê o texto (no próprio navegador) e mostra uma tabela para você conferir antes de adicionar.';
-  if (inst === 'BTG' && tipo === 'excel') return 'Pode ser a posição da base inteira (relatório "Posição") ou o extrato de um cliente ("Extrato da Conta Investimento"). O painel reconhece sozinho.';
-  if (inst === 'BTG' && tipo === 'pdf') return 'Extrato da Conta Investimento em PDF. O Excel do mesmo extrato também funciona.';
-  if (inst === 'Caixa' && tipo === 'pdf') return 'Informativo mensal de LCI ou "Saldo em carteira" da Caixa (os dois mostram as mesmas aplicações: use um deles).';
-  if (inst === 'XP' && tipo === 'pdf') return 'Relatório "Posição Consolidada" da XP.';
-  if (inst === 'Safra' && tipo === 'pdf') return 'Relatório Diário do Safra (posição de investimentos).';
-  if (inst === 'Nomad') return 'Lista de posições em dólar. O painel converte para reais pelo câmbio (PTAX), que você pode ajustar.';
+  if (inst === 'BTG' && tipo === 'excel') return 'Extrato detalhado do cliente ("Extrato da Conta Investimento" em Excel).';
+  if (inst === 'BTG' && tipo === 'pdf') return 'Extrato da Conta Investimento em PDF do BTG Pactual.';
+  if (inst === 'Caixa' && tipo === 'pdf') return 'Informativo mensal de LCI ou "Saldo em carteira" da Caixa.';
+  if (inst === 'XP' && tipo === 'pdf') return 'Relatório "Posição Consolidada" da XP Investimentos.';
+  if (inst === 'Safra' && tipo === 'pdf') return 'Relatório de investimentos do Banco Safra.';
+  if (inst === 'Nomad') return 'Lista de posições em dólar. O painel converte para reais pela PTAX oficial da data-base.';
   if (tipo === 'excel') return 'Excel no formato padrão do painel. <button type="button" class="btn-link" data-acao="modelo">Baixar o modelo</button>';
-  return 'PDFs reconhecidos: BTG, XP, Safra, Caixa e Nomad. Para outra instituição, use foto (com conferência) ou o Excel padrão.';
+  return 'PDFs reconhecidos: BTG, XP, Safra, Caixa e Nomad. Para outra instituição, use foto ou o Excel padrão.';
 }
 
-export function escolherAnexo(padrao: { inst?: string } = {}): Promise<any> {
+export function escolherAnexo(padrao: { inst?: string; modo?: 'posicao' | 'extrato' } = {}): Promise<any> {
   return new Promise(resolve => {
     const dlg = $('#dlg-extrato') as HTMLDialogElement;
     if (!dlg) return resolve(null);
+    let modo: 'posicao' | 'extrato' = padrao.modo || 'extrato';
+    let tipo = modo === 'posicao' ? 'excel' : 'pdf';
+    let instInicial = padrao.inst || 'BTG';
+
     dlg.innerHTML = `<form method="dialog" class="dlg">
-      <h2>Anexar extrato</h2>
+      <div class="dlg-modo-wrap">
+        <div class="box-k" style="font-size:11px;margin-bottom:6px;color:#0A1F44;">Finalidade do Carregamento</div>
+        <div class="seg seg-largo" id="anexo-modo">
+          <button type="button" data-m="posicao" aria-pressed="${modo === 'posicao'}">📊 Posição Diária (Base)</button>
+          <button type="button" data-m="extrato" aria-pressed="${modo === 'extrato'}">📑 Extrato Fechado (Cliente)</button>
+        </div>
+      </div>
+
+      <div id="info-modo-posicao" class="info-anexo-box" ${modo === 'posicao' ? '' : 'hidden'}>
+        <b>📊 Modo Posição Diária (D-0 / D-1):</b> Suba a planilha com a base completa (ex.: relatório <i>Posição</i> do BTG Pactual). Atualiza a carteira viva para acompanhar saldos, monitorar a <b>distância da política de investimentos (IPS)</b> e simular rebalanceamentos.
+      </div>
+      <div id="info-modo-extrato" class="info-anexo-box" ${modo === 'extrato' ? '' : 'hidden'}>
+        <b>📑 Modo Extrato Fechado:</b> Suba o extrato oficial detalhado por cliente/conta (PDF ou Excel de BTG, XP, Safra, Caixa, Nomad). Define a <b>data-base oficial auditada</b> para consolidar a carteira e emitir o <b>Diagnóstico Patrimonial (PDF)</b>.
+      </div>
+
       <div class="dlg-linha">
         <label class="campo"><span class="rotulo">Instituição</span>
-          <select name="inst">${INSTITUICOES.map(([v, n]) => `<option value="${v}">${esc(n)}</option>`).join('')}<option value="__outra">Outra…</option></select></label>
+          <select name="inst">${INSTITUICOES.map(([v, n]) => `<option value="${v}" ${v === instInicial ? 'selected' : ''}>${esc(n)}</option>`).join('')}<option value="__outra">Outra…</option></select></label>
         <label class="campo" id="campo-outra" hidden><span class="rotulo">Nome da instituição</span><input type="text" name="instOutra" placeholder="ex.: Itaú"></label>
       </div>
-      <div class="campo"><span class="rotulo">Tipo de extrato</span>
-        <span class="seg" id="anexo-tipo"><button type="button" data-v="excel" aria-pressed="true">Excel</button><button type="button" data-v="pdf" aria-pressed="false">PDF</button><button type="button" data-v="foto" aria-pressed="false">Foto</button></span></div>
-      <p class="sec" id="anexo-dica" style="min-height:2.6em"></p>
-      <label class="campo"><span class="rotulo">Arquivo</span><input type="file" name="arq" required></label>
-      <div class="dlg-botoes"><button value="cancelar" class="btn" formnovalidate>Cancelar</button><button value="ok" class="btn btn-pri">Ler extrato</button></div>
+
+      <div class="campo" id="campo-tipo">
+        <span class="rotulo">Formato do arquivo</span>
+        <span class="seg" id="anexo-tipo">
+          <button type="button" data-v="excel" aria-pressed="${tipo === 'excel'}">Excel</button>
+          <button type="button" data-v="pdf" aria-pressed="${tipo === 'pdf'}">PDF</button>
+          <button type="button" data-v="foto" aria-pressed="${tipo === 'foto'}">Foto</button>
+        </span>
+      </div>
+
+      <p class="sec" id="anexo-dica" style="min-height:2.4em;margin:8px 0;"></p>
+      <label class="campo"><span class="rotulo">Selecionar arquivo(s)</span><input type="file" name="arq" required></label>
+      <div class="dlg-botoes">
+        <button value="cancelar" class="btn" formnovalidate>Cancelar</button>
+        <button value="ok" class="btn btn-pri" id="btn-submit-upload">Ler arquivo</button>
+      </div>
     </form>`;
+
     const f = dlg.querySelector('form') as any;
-    let tipo = 'excel';
+
     const atualizar = () => {
       const inst = f.inst.value;
       const outraEl = $('#campo-outra');
       if (outraEl) outraEl.hidden = inst !== '__outra';
+
+      const infoPos = $('#info-modo-posicao');
+      const infoExt = $('#info-modo-extrato');
+      if (infoPos) infoPos.hidden = modo !== 'posicao';
+      if (infoExt) infoExt.hidden = modo !== 'extrato';
+
+      const submitBtn = $('#btn-submit-upload');
+      if (submitBtn) {
+        submitBtn.textContent = modo === 'posicao' ? 'Carregar Posição Diária' : 'Carregar Extrato do Cliente';
+      }
+
       f.arq.accept = ({ excel: '.xlsx,.xls', pdf: '.pdf', foto: 'image/*' } as any)[tipo];
       f.arq.multiple = true;
       const dicaEl = $('#anexo-dica');
-      if (dicaEl) dicaEl.innerHTML = dicaAnexo(inst, tipo);
+      if (dicaEl) dicaEl.innerHTML = dicaAnexo(inst, tipo, modo);
     };
+
+    $('#anexo-modo')?.addEventListener('click', e => {
+      const b = (e.target as HTMLElement).closest('button');
+      if (!b) return;
+      modo = (b.dataset.m as any) || 'extrato';
+      $('#anexo-modo')?.querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+      if (modo === 'posicao') {
+        tipo = 'excel';
+        f.inst.value = 'BTG';
+      } else {
+        const p = ({ BTG: 'excel', XP: 'pdf', Safra: 'pdf', Nomad: 'pdf', Rhino: 'foto' } as any)[f.inst.value] || 'pdf';
+        tipo = p;
+      }
+      $('#anexo-tipo')?.querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', String(x.dataset.v === tipo)));
+      f.arq.value = '';
+      atualizar();
+    });
+
     $('#anexo-tipo')?.addEventListener('click', e => {
       const b = (e.target as HTMLElement).closest('button');
       if (!b) return;
@@ -70,12 +133,19 @@ export function escolherAnexo(padrao: { inst?: string } = {}): Promise<any> {
       f.arq.value = '';
       atualizar();
     });
+
     f.inst.addEventListener('change', () => {
-      const p = ({ BTG: 'excel', XP: 'pdf', Safra: 'pdf', Nomad: 'pdf', Rhino: 'foto' } as any)[f.inst.value];
-      if (p) ($(`#anexo-tipo button[data-v="${p}"]`) as HTMLElement)?.click();
-      else atualizar();
+      if (modo === 'extrato') {
+        const p = ({ BTG: 'excel', XP: 'pdf', Safra: 'pdf', Nomad: 'pdf', Rhino: 'foto' } as any)[f.inst.value];
+        if (p) ($(`#anexo-tipo button[data-v="${p}"]`) as HTMLElement)?.click();
+        else atualizar();
+      } else {
+        atualizar();
+      }
     });
+
     atualizar();
+
     if (padrao.inst) {
       if ([...f.inst.options].some((o: any) => o.value === padrao.inst)) {
         f.inst.value = padrao.inst;
@@ -86,16 +156,18 @@ export function escolherAnexo(padrao: { inst?: string } = {}): Promise<any> {
         atualizar();
       }
     }
+
     dlg.onclose = () => {
       if (dlg.returnValue !== 'ok' || !f.arq.files.length) return resolve(null);
       const inst = f.inst.value === '__outra' ? f.instOutra.value.trim() || 'Outra' : f.inst.value;
-      resolve({ inst, tipo, arquivos: [...f.arq.files] });
+      resolve({ inst, tipo, modo, arquivos: [...f.arq.files] });
     };
+
     dlg.showModal();
   });
 }
 
-export async function anexarExtrato(padrao: { inst?: string } = {}) {
+export async function anexarExtrato(padrao: { inst?: string; modo?: 'posicao' | 'extrato' } = {}) {
   const escolha = await escolherAnexo(padrao);
   if (escolha) await processarArquivos(escolha.arquivos, { inst: escolha.inst, tipo: escolha.tipo });
 }

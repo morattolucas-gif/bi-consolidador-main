@@ -49,8 +49,9 @@
         <button class="btn btn-topo" id="btn-usuario" title="Quem está usando o B.I. (vai para o histórico)">Usuário</button>
         <button class="btn btn-topo" id="btn-historico" title="Quem fez o quê no B.I. e as mudanças no código">Histórico</button>
         <button class="btn btn-topo" id="btn-politicas" title="Gerenciar e importar Políticas de Investimento em Excel por Conta (LGPD)">Políticas</button>
-        <button class="btn btn-topo" id="btn-pasta" title="Lê a pasta de posições: a planilha do BTG mais recente e o extrato mais recente de cada cliente">Ler pasta</button>
-        <button class="btn btn-pri" id="btn-anexar" title="Excel, PDF ou foto de qualquer instituição">Anexar extrato</button>
+        <button class="btn btn-topo" id="btn-pasta" title="Lê a pasta de posições: a planilha do BTG mais recente e o extrato mais recente de cada cliente">📁 Ler pasta</button>
+        <button class="btn btn-topo" id="btn-posicao" title="Subir planilha consolidada da base inteira (D-0 / D-1) para acompanhar saldos e política">📊 Posição diária</button>
+        <button class="btn btn-pri" id="btn-anexar" title="Subir extrato oficial fechado por cliente para relatórios">📑 Extrato fechado</button>
       </div>
     </div>
     <nav class="abas" role="tablist" id="abas" hidden>
@@ -70,19 +71,45 @@
   <div id="aviso-cad" class="faixa-exemplo" hidden></div>
   <input type="file" id="arq-cadastro" accept=".js" hidden>
 
-  <!-- Estado inicial -->
+  <!-- Estado inicial: bifurcação clara Posição Diária vs Extrato Fechado -->
   <section id="vazio" class="vazio">
-    <div class="drop" id="drop" tabindex="0">
-      <h2>Anexe os extratos</h2>
-      <p class="sec">Excel do BTG (base inteira ou de um cliente), PDF da XP, Safra e Nomad, foto de qualquer extrato, ou o Excel padrão. Também dá para arrastar os arquivos aqui.</p>
-      <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:16px">
-        <button class="btn btn-pri" id="btn-vazio-anexar">Anexar extrato</button>
-        <button class="btn" id="btn-vazio-pasta">Ler a pasta de posições</button>
-      </div>
-      <p class="muted" style="font-size:12px;margin-top:16px">Os arquivos são lidos só neste navegador. Nada é enviado para a internet.</p>
+    <div class="vazio-cab">
+      <h2>Como você deseja carregar os dados?</h2>
+      <p class="sec">Escolha a finalidade do arquivo para garantir a organização da sua base de investimentos:</p>
     </div>
-    <p class="sec" style="margin-top:16px">Só quer conhecer o painel? <button class="btn-link" id="btn-exemplo">Abrir com dados fictícios</button>
-      · Outra instituição sem leitor? <button class="btn-link" data-acao="modelo">Baixar o Excel padrão</button></p>
+
+    <div class="vazio-grid">
+      <!-- Opção 1: Posição Diária -->
+      <div class="vazio-card" id="card-vazio-posicao">
+        <div class="vazio-card-badge">Monitoramento Diário</div>
+        <div class="vazio-card-icon">📊</div>
+        <h3>Posição Diária (Toda a Base)</h3>
+        <p>Planilha consolidada de posições da corretora (D-0 / D-1) com todos os clientes. Ideal para <b>acompanhar saldos vivos</b>, verificar a <b>distância da política de investimentos (IPS)</b> e simular alocações.</p>
+        <button type="button" class="btn btn-topo" id="btn-vazio-posicao" style="background:var(--marca);color:#fff;border:0;">📊 Subir Posição Diária</button>
+      </div>
+
+      <!-- Opção 2: Extrato Fechado -->
+      <div class="vazio-card" id="card-vazio-extrato">
+        <div class="vazio-card-badge badge-oficial">Fechamento Mensal</div>
+        <div class="vazio-card-icon">📑</div>
+        <h3>Extrato Fechado (Por Cliente)</h3>
+        <p>Extratos oficiais detalhados de fechamento de mês por cliente (PDF ou Excel de BTG, XP, Safra, Nomad). Define a <b>data-base oficial auditada</b> para emitir o <b>Diagnóstico Patrimonial (PDF)</b>.</p>
+        <button type="button" class="btn btn-pri" id="btn-vazio-extrato">📑 Subir Extrato do Cliente</button>
+      </div>
+    </div>
+
+    <div class="drop" id="drop" tabindex="0">
+      <span>Ou arraste qualquer arquivo (Excel, PDF ou foto) diretamente aqui</span>
+    </div>
+
+    <div class="vazio-acoes-sec">
+      <button type="button" class="btn" id="btn-vazio-pasta">📁 Ler a pasta de posições do escritório</button>
+      <span class="separador">•</span>
+      <button type="button" class="btn-link" id="btn-exemplo">Abrir com dados fictícios</button>
+      <span class="separador">•</span>
+      <button type="button" class="btn-link" data-acao="modelo">Baixar o Excel padrão</button>
+    </div>
+    <p class="muted" style="font-size:12px;margin-top:20px;">🔒 100% confidencial: os arquivos são processados exclusivamente na memória deste navegador. Nada é enviado para servidores externos.</p>
   </section>
 
   <section id="painel" hidden>

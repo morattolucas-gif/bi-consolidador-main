@@ -110,7 +110,8 @@ function renderFontes() {
     `<button class="btn" data-acao="extratos" title="Planilha do BTG e extratos de cada cliente: data, quem enviou, substituir e remover">Extratos${nExt ? ` (${nExt})` : ''}</button>` +
     `<button class="btn" data-acao="politicas" title="Gerenciar Políticas de Investimento em Excel por Conta (LGPD)">Políticas${nPol ? ` (${nPol})` : ''}</button>` +
     `<button class="btn" data-acao="atualizarpasta" title="Lê a pasta de posições e carrega os arquivos mais recentes">Atualizar com a pasta</button>` +
-    `<button class="btn" data-acao="addextrato">+ Anexar extrato</button>` +
+    `<button class="btn" data-acao="addposicao" title="Carregar nova planilha de posições da base toda (D-0 / D-1) para acompanhar saldos e política">📊 + Posição diária</button>` +
+    `<button class="btn" data-acao="addextrato" title="Anexar extrato oficial mensal fechado de um cliente (PDF ou Excel)">📑 + Extrato do cliente</button>` +
     (nNovos ? `<button class="btn" data-acao="salvarcad" title="Clientes associados a extratos que ainda não estão no cadastro permanente">Guardar ${nNovos === 1 ? '1 cliente novo' : `${nNovos} clientes novos`}</button>` : '');
   avisarCadastro();
 }
@@ -153,14 +154,20 @@ registrarCallbacksUI({
 setModalDonoHandler((ext: any) => perguntarDono(ext));
 
 /* ---------- Eventos ---------- */
-$('#btn-anexar')?.addEventListener('click', () => anexarExtrato());
+$('#btn-posicao')?.addEventListener('click', () => anexarExtrato({ modo: 'posicao' }));
+$('#btn-anexar')?.addEventListener('click', () => anexarExtrato({ modo: 'extrato' }));
 $('#btn-pasta')?.addEventListener('click', () => lerPasta());
 $('#btn-politicas')?.addEventListener('click', () => abrirPoliticas());
 $('#btn-historico')?.addEventListener('click', () => abrirHistorico());
 $('#btn-cadastro')?.addEventListener('click', () => editarCadastro());
 $('#btn-usuario')?.addEventListener('click', () => perguntarUsuario());
+$('#btn-vazio-posicao')?.addEventListener('click', e => { e.stopPropagation(); anexarExtrato({ modo: 'posicao' }); });
+$('#btn-vazio-extrato')?.addEventListener('click', e => { e.stopPropagation(); anexarExtrato({ modo: 'extrato' }); });
+$('#card-vazio-posicao')?.addEventListener('click', () => anexarExtrato({ modo: 'posicao' }));
+$('#card-vazio-extrato')?.addEventListener('click', () => anexarExtrato({ modo: 'extrato' }));
 $('#btn-vazio-pasta')?.addEventListener('click', e => { e.stopPropagation(); lerPasta(); });
-$('#btn-vazio-anexar')?.addEventListener('click', e => { e.stopPropagation(); anexarExtrato(); });
+$('#btn-vazio-anexar')?.addEventListener('click', e => { e.stopPropagation(); anexarExtrato({ modo: 'extrato' }); });
+$('#drop')?.addEventListener('click', () => anexarExtrato());
 
 $('#drop')?.addEventListener('keydown', e => {
   const ev = e as KeyboardEvent;
@@ -422,7 +429,8 @@ document.addEventListener('click', e => {
     if (tipo === 'conta') abrirConta(alvo);
     if (tipo === 'unidade') abrirUnidade(alvo);
     if (tipo === 'rmfonte') removerFonte(alvo);
-    if (tipo === 'addextrato') anexarExtrato();
+    if (tipo === 'addposicao') anexarExtrato({ modo: 'posicao' });
+    if (tipo === 'addextrato') anexarExtrato({ modo: 'extrato' });
     if (tipo === 'extratos') abrirExtratos();
     if (tipo === 'politicas') abrirPoliticas();
     if (tipo === 'modelo-politica') baixarModeloPoliticaExcel();
