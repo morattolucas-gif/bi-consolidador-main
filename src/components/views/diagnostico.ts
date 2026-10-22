@@ -34,8 +34,12 @@ import { IMG_P_CAPA, IMG_BTG_CAPA, IMG_LOGO_PADRAO } from './report-assets';
 import { DIAG_REPORT_CSS } from '../../styles/report-styles';
 
 // --- Diagnóstico e Enriquecimento de Ativos ---
+// Grupo consolidado (mesma casa gestora): Contea, Carbyne, BRM, Apex, Eluja e Pignola
+export const GESTORA_GRUPO_CONTEA = 'Contea / Carbyne / Apex / Pignola';
 // De-para de ativos já identificados (seção 4.4 do padrão)
 export const DEPARA = [
+  // FIC FIM que investe em cota júnior (subordinada) de FIDC: o nome não diz "FIDC", então o enquadramento é manual
+  { re: /\bVALADIER\b/, classe: 'Alt', contraparte: 'Estr', gestor: GESTORA_GRUPO_CONTEA, carac: 'FIDC — cota júnior (subordinada)', prazo: 'L', janela: 'cot', veiculo: 'FIDC' },
   { re: /\b5PRE11\b/, nome: 'ETF 5PRE11 — IT Now Pré', classe: 'Pre', contraparte: 'Sob', gestor: 'Itaú Asset', carac: 'Títulos públicos pré', prazo: 'M', janela: 'd2' },
   { re: /\bSMAL11\b/, nome: 'ETF SMAL11 — iShares Small Caps', classe: 'Acoes', contraparte: 'Acoes', gestor: 'BlackRock / iShares', carac: 'ETF small caps', prazo: 'L', janela: 'd2' },
   { re: /\bBOVA11\b/, nome: 'ETF BOVA11 — iShares Ibovespa', classe: 'Acoes', contraparte: 'Acoes', gestor: 'BlackRock / iShares', carac: 'ETF Ibovespa', prazo: 'L', janela: 'd2' },
@@ -51,14 +55,15 @@ export const DEPARA = [
   { re: /\bCTSE11\b/, emissor: 'CL Sites S.A. (grupo Clemar)', setor: 'Torres de telecom' },
   { re: /\bCJEN13\b/, emissor: 'TESC — Terminal Santa Catarina', setor: 'Terminal portuário' },
 ];
-// Casas gestoras reconhecidas pelo nome do veículo
+// Casas gestoras reconhecidas pelo nome do veículo (o grupo consolidado fica no topo para ter prioridade)
 export const GESTORAS = [
+  [/CONTEA|CARBYNE|\bBRM\b|\bAPEX\b|ELUJA|PIGNOLA/, GESTORA_GRUPO_CONTEA],
   [/\bBTG\b/, 'BTG Pactual'], [/\bITAU\b|\bIT NOW\b/, 'Itaú Asset'], [/ISHARES|BLACKROCK/, 'BlackRock / iShares'], [/\bJGP/, 'JGP'],
   [/CAPITANIA/, 'Capitânia'], [/GALAPAGOS/, 'Galapagos Capital'], [/JIVE/, 'JiveMauá BossaNova'], [/\bZION\b/, 'Zion Capital'],
-  [/\bAPEX\b/, 'Carbyne / BRM / Apex'], [/PIGNOLA/, 'Pignola'], [/CONTEA/, 'Contea'], [/CARBYNE|\bBRM\b/, 'Carbyne / BRM / Apex'], [/\bSEVEN\b/, 'Seven'],
-  [/\bLCP\b/, 'LCP'], [/KAPITALO/, 'Kapitalo'], [/\bSAF\b|SAFRA/, 'Safra Asset'], [/\bTREND\b/, 'XP Asset (Trend)'], [/DANTE|SINGULAR/, 'Dante / Singular'],
+  [/\bSEVEN\b/, 'Seven'],
+  [/\bLCP\b/, 'LCP'], [/KAPITALO/, 'Kapitalo'], [/\bSAF\b|(?<!BOA )SAFRA/, 'Safra Asset'], [/\bTREND\b/, 'XP Asset (Trend)'], [/DANTE|SINGULAR/, 'Dante / Singular'],
   [/\bSORI\b/, 'Sori'], [/KINEA/, 'Kinea'], [/\bSPX\b/, 'SPX'], [/\bVERDE\b/, 'Verde'], [/LEGACY/, 'Legacy'], [/\bARX\b/, 'ARX'],
-  [/AZ QUEST/, 'AZ Quest'], [/SPARTA/, 'Sparta'], [/VINCI/, 'Vinci'], [/PATRIA/, 'Pátria'], [/\bXP\b/, 'XP Asset'], [/ELUJA/, 'Carbyne / BRM / Apex'],
+  [/AZ QUEST/, 'AZ Quest'], [/SPARTA/, 'Sparta'], [/VINCI/, 'Vinci'], [/PATRIA/, 'Pátria'], [/\bXP\b/, 'XP Asset'],
   [/VANGUARD/, 'Vanguard'], [/INVESCO/, 'Invesco'], [/SCHWAB/, 'Charles Schwab'], [/JPMORGAN/, 'JPMorgan'], [/SPDR|STATE STREET/, 'State Street'], [/SULAMERICA/, 'SulAmérica'],
 ];
 export const SEM_ACENTO = s => String(s ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase();
@@ -77,7 +82,8 @@ export const nomeLimpo = s => String(s).toLowerCase().split(/\s+/).map((w, i) =>
 export function emissorCurto(s: any) {
   if (!s) return null;
   const n = SEM_ACENTO(s);
-  const fixos: [RegExp, string][] = [[/BTG PACTUAL/, 'BTG Pactual'], [/NACIONAL DESENV|BNDES/, 'BNDES'], [/SAFRA/, 'Banco Safra'], [/VOTORANTIM/, 'Banco Votorantim'],
+  // "Boa Safra" (Boa Safra Sementes, emissora de CRA) vem antes do Banco Safra, que não pode pegar "BOA SAFRA"
+  const fixos: [RegExp, string][] = [[/BTG PACTUAL/, 'BTG Pactual'], [/NACIONAL DESENV|BNDES/, 'BNDES'], [/BOA SAFRA/, 'Boa Safra Sementes'], [/(?<!BOA )SAFRA/, 'Banco Safra'], [/VOTORANTIM/, 'Banco Votorantim'],
     [/B ?B ?M\b/, 'Banco BBM'], [/ABC BRASIL/, 'Banco ABC Brasil'], [/BACEN|TESOURO/, 'Tesouro Nacional'], [/ITAU/, 'Itaú Unibanco'], [/BRADESCO/, 'Bradesco'],
     // Nomes curtos de emissores já vistos (como nos relatórios do escritório)
     [/COSERN/, 'Cosern'], [/WTE BIOGAS/, 'WTE Biogás Franca'], [/MULTIPLAN/, 'Multiplan'], [/MOMA/, 'Moma Residence'], [/RAIZEN/, 'Raízen'],
@@ -184,7 +190,7 @@ export function dgEnriquecer(p: any, base: Date) {
   const liqDiaria = ehBanc && classe === 'Pos' && tem(/ cdb /) && (!txIdx || txIdx <= 100.5) && emissorCurto(p.emissor) === instNome;
   let prazo, janela;
   if (classe === 'Caixa') { prazo = 'C'; janela = 'dia'; }
-  else if (dp.prazo || dp.janela) { prazo = dp.prazo || 'L'; janela = 'bolsa'; }
+  else if (dp.prazo || dp.janela) { prazo = dp.prazo || 'L'; janela = dp.janela && dp.janela !== 'd2' ? dp.janela : 'bolsa'; }
   else if (m === 'previdencia') { prazo = 'L'; janela = 'prev'; }
   else if (ehFIP || tem(/ d 366 /)) { prazo = 'L'; janela = 'cot'; }
   else if (ehLista || exterior) { prazo = 'L'; janela = 'bolsa'; }
@@ -232,10 +238,10 @@ export function dgEnriquecer(p: any, base: Date) {
   else carac = p.estrategia || '—';
 
   // Veículo (como o dinheiro está aplicado), para abrir cada classe: fundo, título público, CDB, crédito privado…
-  const veiculo = p.receber ? 'Valores a receber' : classe === 'Caixa' ? 'Conta corrente' : m === 'previdencia' ? 'Previdência' : deriv ? 'Derivativos' : ehTP ? 'Título público'
+  const veiculo = dp.veiculo || (p.receber ? 'Valores a receber' : classe === 'Caixa' ? 'Conta corrente' : m === 'previdencia' ? 'Previdência' : deriv ? 'Derivativos' : ehTP ? 'Título público'
     : ehBanc ? 'Renda fixa bancária' : ehPriv ? 'Crédito privado (CRI, CRA, debênture)' : m === 'coe' ? 'COE' : ehFIP ? 'FIP' : ehFIDC ? 'FIDC'
     : ehFII ? 'FII / Fiagro' : acaoDireta ? 'Ações' : exteriorDireto ? 'Ativos no exterior' : exterior ? 'Fundos e ETFs no exterior'
-    : m === 'criptoativos' ? 'Criptoativos' : ehLista ? 'ETF' : ehFundo ? 'Fundos' : 'Outros';
+    : m === 'criptoativos' ? 'Criptoativos' : ehLista ? 'ETF' : ehFundo ? 'Fundos' : 'Outros');
   return { p, v: valor(p), classe, cp, direto, ge, papel, fgc, prazo, janela, anos, confirmado, nome, carac, veiculo, intl: classe === 'Intl' };
 }
 

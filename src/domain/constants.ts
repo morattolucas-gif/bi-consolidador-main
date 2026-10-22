@@ -104,6 +104,11 @@ export const CHAVE_VERSAO = 'bi-base-clientes:versao-vista';
 export const CHAVE_POLITICAS = 'bi-base-clientes:politicas-investimento';
 
 export const VERSOES_BI = [
+  { versao: '2026.10.22', data: '2026-10-22', autor: 'Lucas + IA', mudancas: [
+    'Casas gestoras: Contea, Carbyne, BRM, Apex, Eluja e Pignola consolidadas numa única gestora ("Contea / Carbyne / Apex / Pignola").',
+    'Emissores diretos: "Boa Safra" (CRA Boa Safra Sementes) não aparece mais como "Banco Safra".',
+    'Contea Valadier (FIC FIM em cota júnior de FIDC): classe Alternativos, risco Crédito Estruturado, liquidez por cotização.',
+  ] },
   { versao: '2026.10.19', data: '2026-10-19', autor: 'Vinicius + Claude', mudancas: [
     'Casas gestoras: Carbyne, BRM e Apex aparecem juntas numa linha só ("Carbyne / BRM / Apex").',
   ] },
