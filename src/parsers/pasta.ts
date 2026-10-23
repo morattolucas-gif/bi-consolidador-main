@@ -4,12 +4,13 @@ import { somaLista, multPrecisa, arredondarFinanceiro } from '../domain/precisio
 import { S } from '../domain/state';
 import { montarPosicao, ehExtratoBTG, lerExtratoBTG, lerPlanilha, data } from './btg';
 import { ehPoliticasExcel, lerPoliticasExcel } from './politicas-excel';
+import { ehBaseBtgExcel, lerBaseBtgExcel } from './base-btg';
 import { lerExcelPadrao } from './excel-padrao';
 import { lerPdfLinhas, lerExtratoPdf } from './pdf-reader';
 import { lerFoto, lerFotoExtrato } from './ocr';
 import { buscarPtax } from './nomad';
 import { reconciliar } from './reconciliar';
-import { idbBanco, salvarPoliticas, gravarLocal, registrar, donoPorPasta, lembrarDonoPasta } from '../domain/storage';
+import { idbBanco, salvarPoliticas, salvarBaseBtg, gravarLocal, registrar, donoPorPasta, lembrarDonoPasta } from '../domain/storage';
 import { cadastroDe } from '../domain/calculations';
 import { adicionarFonte, recalcular } from '../domain/pipeline';
 import { CHAVE_CAD_ARQ } from '../domain/constants';
@@ -200,6 +201,9 @@ export async function lerArquivo(arquivo: Blob | File, opc: { tipo?: string; ins
       if (ehPoliticasExcel(wb)) {
         return { politicas: lerPoliticasExcel(wb) };
       }
+      if (ehBaseBtgExcel(wb)) {
+        return { baseBtg: lerBaseBtgExcel(wb) };
+      }
       if (ehExtratoBTG(wb)) ext = lerExtratoBTG(wb);
       else {
         try {
@@ -236,6 +240,14 @@ export async function processarArquivo(arquivo: Blob | File, opc: { tipo?: strin
     recalcular();
     alert(`Políticas de Investimento carregadas com sucesso: ${r.politicas.size} contas atualizadas.`);
     return { politicas: true };
+  }
+  if (r.baseBtg) {
+    S.baseBtg = r.baseBtg;
+    await salvarBaseBtg();
+    registrar('Base BTG importada', `${r.baseBtg.length} contas carregadas via ${(arquivo as File).name || 'Excel'}`);
+    recalcular();
+    alert(`Base BTG carregada com sucesso: ${r.baseBtg.length} contas processadas para o plano de negócio.`);
+    return { baseBtg: true };
   }
   if (r.macro) {
     incluirMacro(r.macro, (arquivo as File).name || 'arquivo');

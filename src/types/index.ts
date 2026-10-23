@@ -162,6 +162,38 @@ export interface EstadoGlobal {
   };
   rel?: any;
   relItens?: any;
+  baseBtg: BaseBtgConta[];
+  faixasBase: FaixaPLConfig[];
+  filtroBase: {
+    modo: 'conta' | 'cliente';
+    assessor: string;
+    status: string;
+    tipoInvestidor: string;
+    busca: string;
+    faixaSel: string | null;
+    tipoSel: string | null;
+  };
+}
+
+export interface BaseBtgConta {
+  conta: string;
+  nome: string;
+  tipo: 'PF' | 'PJ' | 'Estrangeiro' | 'Outro';
+  plTotal: number;
+  assessor: string;
+  status: string;
+  tipoInvestidor: string;
+  idCliente?: string;
+  faixaBtg?: string;
+  cidade?: string;
+  estado?: string;
+  dataAbertura?: string;
+}
+
+export interface FaixaPLConfig {
+  rotulo: string;
+  min: number;
+  max: number;
 }
 
 export type ExtratoLido = any;

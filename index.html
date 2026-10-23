@@ -58,6 +58,7 @@
       <button role="tab" data-aba="carteira" aria-selected="true">Visão geral</button>
       <button role="tab" data-aba="conta" aria-selected="false">Cliente</button>
       <button role="tab" data-aba="ativo" aria-selected="false">Ativo e alocação</button>
+      <button role="tab" data-aba="base" aria-selected="false">👥 Base de clientes (CRM)</button>
     </nav>
 
   </div>
@@ -95,6 +96,15 @@
         <h3>Extrato Fechado (Por Cliente)</h3>
         <p>Extratos oficiais detalhados de fechamento de mês por cliente (PDF ou Excel de BTG, XP, Safra, Nomad). Define a <b>data-base oficial auditada</b> para emitir o <b>Diagnóstico Patrimonial (PDF)</b>.</p>
         <button type="button" class="btn btn-pri" id="btn-vazio-extrato">📑 Subir Extrato do Cliente</button>
+      </div>
+
+      <!-- Opção 3: Base de Clientes (CRM / Plano de Negócio) -->
+      <div class="vazio-card" id="card-vazio-base">
+        <div class="vazio-card-badge" style="background:#6c3483;">Plano de Negócio</div>
+        <div class="vazio-card-icon">👥</div>
+        <h3>Base BTG (CRM / Segmentação)</h3>
+        <p>Planilha de cadastro e clientes da corretora (Base BTG). Segmenta a base em <b>PF vs PJ</b>, calcula faixas de patrimônio líquido (PL) e exporta dados para o <b>plano de negócio</b>.</p>
+        <button type="button" class="btn" id="btn-vazio-base" style="background:#6c3483;color:#fff;border:0;">👥 Subir Base BTG</button>
       </div>
     </div>
 
@@ -316,6 +326,9 @@
         <div id="tab-sim"></div>
       </div>
     </section>
+
+    <!-- ===== Aba Base de Clientes (CRM / Plano de Negócio) ===== -->
+    <section class="aba" id="aba-base" hidden></section>
   </section>
 </main>
 

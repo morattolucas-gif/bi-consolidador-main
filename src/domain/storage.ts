@@ -1,5 +1,5 @@
 import { S } from './state';
-import { CHAVE_FONTES, CHAVE_HIST, CHAVE_POLITICAS, CHAVE_PASTA, CHAVE_USUARIO } from './constants';
+import { CHAVE_FONTES, CHAVE_HIST, CHAVE_POLITICAS, CHAVE_PASTA, CHAVE_USUARIO, CHAVE_BASE_BTG, CHAVE_FAIXAS_BASE } from './constants';
 import { FonteExtrato, PoliticaInvestimento } from '../types';
 
 const memoriaLocal = new Map<string, any>();
@@ -144,4 +144,32 @@ export function lembrarDonoPasta(chave: string, contaFull: string) {
   try {
     localStorage.setItem(CHAVE_PASTA, JSON.stringify(m));
   } catch {}
+}
+
+export async function salvarBaseBtg() {
+  memoriaLocal.set(CHAVE_BASE_BTG, S.baseBtg);
+  await gravarIDB(CHAVE_BASE_BTG, S.baseBtg);
+}
+
+export async function restaurarBaseBtg() {
+  let dados = await lerIDB(CHAVE_BASE_BTG, null);
+  if (!dados) dados = lerLocal(CHAVE_BASE_BTG, []);
+  if (Array.isArray(dados) && dados.length) {
+    S.baseBtg = dados;
+    return true;
+  }
+  return false;
+}
+
+export async function salvarFaixasBase() {
+  memoriaLocal.set(CHAVE_FAIXAS_BASE, S.faixasBase);
+  await gravarIDB(CHAVE_FAIXAS_BASE, S.faixasBase);
+}
+
+export async function restaurarFaixasBase() {
+  let dados = await lerIDB(CHAVE_FAIXAS_BASE, null);
+  if (!dados) dados = lerLocal(CHAVE_FAIXAS_BASE, null);
+  if (Array.isArray(dados) && dados.length) {
+    S.faixasBase = dados;
+  }
 }

@@ -102,8 +102,22 @@ export const CHAVE_CAD_ARQ = 'bi-base-clientes:cadastro-arquivo';
 export const CHAVE_USUARIO = 'bi-base-clientes:usuario';
 export const CHAVE_VERSAO = 'bi-base-clientes:versao-vista';
 export const CHAVE_POLITICAS = 'bi-base-clientes:politicas-investimento';
+export const CHAVE_BASE_BTG = 'bi-base-clientes:base-btg';
+export const CHAVE_FAIXAS_BASE = 'bi-base-clientes:faixas-base';
+
+export const FAIXAS_PADRAO_BASE = [
+  { rotulo: 'Sem patrimônio', min: -Infinity, max: 0.01 },
+  { rotulo: 'Até 100 mil', min: 0.01, max: 100000 },
+  { rotulo: '100 a 500 mil', min: 100000, max: 500000 },
+  { rotulo: '500 mil a 1 mi', min: 500000, max: 1000000 },
+  { rotulo: '1 a 5 mi', min: 1000000, max: 5000000 },
+  { rotulo: 'Acima de 5 mi', min: 5000000, max: Infinity }
+];
 
 export const VERSOES_BI = [
+  { versao: '2026.10.23', data: '2026-10-23', autor: 'Lucas + IA', mudancas: [
+    'Nova visão Base de Clientes (CRM / Plano de Negócio): leitura da Base BTG com segmentação por faixas de PL editáveis, PF vs PJ e exportação em Excel.',
+  ] },
   { versao: '2026.10.22', data: '2026-10-22', autor: 'Lucas + IA', mudancas: [
     'Casas gestoras: Contea, Carbyne, BRM, Apex, Eluja e Pignola consolidadas numa única gestora ("Contea / Carbyne / Apex / Pignola").',
     'Emissores diretos: "Boa Safra" (CRA Boa Safra Sementes) não aparece mais como "Banco Safra".',

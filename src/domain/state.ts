@@ -36,5 +36,23 @@ export const S: EstadoGlobal = {
     valor: '',
     origem: 'caixa',
     novo: { nome: '', classe: '', subclasse: '', estrategia: '' }
+  },
+  baseBtg: [],
+  faixasBase: [
+    { rotulo: 'Sem patrimônio', min: -Infinity, max: 0.01 },
+    { rotulo: 'Até 100 mil', min: 0.01, max: 100000 },
+    { rotulo: '100 a 500 mil', min: 100000, max: 500000 },
+    { rotulo: '500 mil a 1 mi', min: 500000, max: 1000000 },
+    { rotulo: '1 a 5 mi', min: 1000000, max: 5000000 },
+    { rotulo: 'Acima de 5 mi', min: 5000000, max: Infinity }
+  ],
+  filtroBase: {
+    modo: 'conta',
+    assessor: '',
+    status: '',
+    tipoInvestidor: '',
+    busca: '',
+    faixaSel: null,
+    tipoSel: null
   }
 };

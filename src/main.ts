@@ -61,6 +61,9 @@ import { gerarRelatorio } from './components/views/diagnostico';
 import { $, $$ } from './components/dom';
 import { esc, norm, clienteDaConta } from './components/formatters';
 
+import { renderBaseClientes } from './components/views/base-clientes';
+import { restaurarBaseBtg, restaurarFaixasBase } from './domain/storage';
+
 const DIMS: Record<string, string> = {
   classe: 'Classe de ativos',
   subclasse: 'Subclasse',
@@ -78,6 +81,7 @@ export function render() {
   if (S.aba === 'carteira') renderCarteira();
   if (S.aba === 'conta') renderConta();
   if (S.aba === 'ativo') renderAtivo();
+  if (S.aba === 'base') renderBaseClientes();
 }
 
 export function irPara(aba: string, rolar: boolean = true) {
@@ -105,10 +109,12 @@ function renderFontes() {
   const nExt = fs.filter(f => f.id !== 'BTG' && f.id !== 'EXEMPLO').length;
   const nPol = S.politicasPorConta?.size || 0;
   const nNovos = associacoesNovas().length;
+  const nBase = S.baseBtg?.length || 0;
   const el = $('#fontes');
   if (el) el.innerHTML = `<span class="info-dados">${info}</span>` +
     `<button class="btn" data-acao="extratos" title="Planilha do BTG e extratos de cada cliente: data, quem enviou, substituir e remover">Extratos${nExt ? ` (${nExt})` : ''}</button>` +
     `<button class="btn" data-acao="politicas" title="Gerenciar Políticas de Investimento em Excel por Conta (LGPD)">Políticas${nPol ? ` (${nPol})` : ''}</button>` +
+    `<button class="btn" data-acao="irbase" title="Base de Clientes BTG (CRM / Plano de Negócio)">Base de Clientes${nBase ? ` (${nBase})` : ''}</button>` +
     `<button class="btn" data-acao="atualizarpasta" title="Lê a pasta de posições e carrega os arquivos mais recentes">Atualizar com a pasta</button>` +
     `<button class="btn" data-acao="addposicao" title="Carregar nova planilha de posições da base toda (D-0 / D-1) para acompanhar saldos e política">📊 + Posição diária</button>` +
     `<button class="btn" data-acao="addextrato" title="Anexar extrato oficial mensal fechado de um cliente (PDF ou Excel)">📑 + Extrato do cliente</button>` +
@@ -161,10 +167,26 @@ $('#btn-politicas')?.addEventListener('click', () => abrirPoliticas());
 $('#btn-historico')?.addEventListener('click', () => abrirHistorico());
 $('#btn-cadastro')?.addEventListener('click', () => editarCadastro());
 $('#btn-usuario')?.addEventListener('click', () => perguntarUsuario());
+function carregarBaseBtgArquivo() {
+  const inp = document.createElement('input');
+  inp.type = 'file';
+  inp.accept = '.xlsx,.xls';
+  inp.onchange = async () => {
+    const f = inp.files?.[0];
+    if (!f) return;
+    const { processarArquivo } = await import('./parsers/pasta');
+    await processarArquivo(f);
+    irPara('base');
+  };
+  inp.click();
+}
+
 $('#btn-vazio-posicao')?.addEventListener('click', e => { e.stopPropagation(); anexarExtrato({ modo: 'posicao' }); });
 $('#btn-vazio-extrato')?.addEventListener('click', e => { e.stopPropagation(); anexarExtrato({ modo: 'extrato' }); });
 $('#card-vazio-posicao')?.addEventListener('click', () => anexarExtrato({ modo: 'posicao' }));
 $('#card-vazio-extrato')?.addEventListener('click', () => anexarExtrato({ modo: 'extrato' }));
+$('#btn-vazio-base')?.addEventListener('click', e => { e.stopPropagation(); carregarBaseBtgArquivo(); });
+$('#card-vazio-base')?.addEventListener('click', () => carregarBaseBtgArquivo());
 $('#btn-vazio-pasta')?.addEventListener('click', e => { e.stopPropagation(); lerPasta(); });
 $('#btn-vazio-anexar')?.addEventListener('click', e => { e.stopPropagation(); anexarExtrato({ modo: 'extrato' }); });
 $('#drop')?.addEventListener('click', () => anexarExtrato());
@@ -433,6 +455,7 @@ document.addEventListener('click', e => {
     if (tipo === 'addextrato') anexarExtrato({ modo: 'extrato' });
     if (tipo === 'extratos') abrirExtratos();
     if (tipo === 'politicas') abrirPoliticas();
+    if (tipo === 'irbase') irPara('base');
     if (tipo === 'modelo-politica') baixarModeloPoliticaExcel();
     if (tipo === 'atualizarpasta') atualizarComPasta();
     if (tipo === 'salvarcad') salvarNovos();
@@ -525,9 +548,25 @@ async function bootstrap() {
   }
 
   await restaurarPoliticas();
+  await restaurarFaixasBase();
+  await restaurarBaseBtg();
   await restaurarFontes();
   avisarPlanilhaAntiga();
-  render();
+
+  if (S.baseBtg.length > 0 && S.posicoes.length === 0) {
+    const vazioEl = $('#vazio');
+    if (vazioEl) vazioEl.hidden = true;
+    const painelEl = $('#painel');
+    if (painelEl) painelEl.hidden = false;
+    const controlesEl = $('#controles');
+    if (controlesEl) controlesEl.hidden = false;
+    const abasEl = $('#abas');
+    if (abasEl) abasEl.hidden = false;
+    renderFontes();
+    irPara('base');
+  } else {
+    render();
+  }
 }
 
 bootstrap();
