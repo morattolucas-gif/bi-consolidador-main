@@ -7,11 +7,11 @@ export function ehBaseBtgExcel(wb: XLSX.WorkBook): boolean {
     const sheet = wb.Sheets[s];
     if (!sheet) continue;
     const rows: any[][] = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: true, defval: '' });
-    for (const r of rows.slice(0, 10)) {
+    for (const r of rows.slice(0, 20)) {
       const line = (r || []).map(c => norm(String(c)));
-      const temConta = line.includes('conta');
-      const temPl = line.some(c => c.includes('pl total') || c === 'pl' || c.includes('faixa cliente'));
-      const temTipo = line.includes('tipo');
+      const temConta = line.some(c => c === 'conta' || c.includes('numero da conta') || c.includes('num conta'));
+      const temPl = line.some(c => c.includes('pl total') || c === 'pl' || c.includes('faixa cliente') || c.includes('pl declarado'));
+      const temTipo = line.some(c => c === 'tipo' || c.includes('tipo parceiro') || c.includes('tipo investidor') || c.includes('tipo pessoa') || c.includes('tipo de'));
       if (temConta && temPl && temTipo) return true;
     }
   }
