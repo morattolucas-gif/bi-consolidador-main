@@ -62,7 +62,6 @@ export function removerFonte(id: string) {
 }
 
 export function recalcular() {
-  const primeira = !S.posicoes.length;
   const contasComExtrato = new Set(
     [...S.fontes.values()].filter(f => f.contaBTG).map(f => chaveConta(f.contaBTG))
   );
@@ -78,25 +77,35 @@ export function recalcular() {
   Object.assign(S, { clientes, familias, clientePorConta: porConta });
 
   const insts = [...new Set(posicoes.map(p => p.instituicao))];
+  const temPos = posicoes.length > 0;
+  const temBase = (S.baseBtg && S.baseBtg.length > 0);
+  const temDados = temPos || temBase;
+  const primeira = !temDados;
+
   const fonteEl = $('#fonte');
   if (fonteEl) {
-    fonteEl.textContent = `${insts.join(' + ')} · ${inteiro(S.clientes.size)} ${
-      S.clientes.size === 1 ? 'cliente' : 'clientes'
-    }`;
+    if (temPos) {
+      fonteEl.textContent = `${insts.join(' + ')} · ${inteiro(S.clientes.size)} ${
+        S.clientes.size === 1 ? 'cliente' : 'clientes'
+      }`;
+    } else if (temBase) {
+      fonteEl.textContent = `Base BTG · ${inteiro(S.baseBtg.length)} contas (CRM)`;
+    }
   }
   const erroEl = $('#erro');
   if (erroEl) erroEl.hidden = true;
   const vazioEl = $('#vazio');
-  if (vazioEl) vazioEl.hidden = true;
+  if (vazioEl && temDados) vazioEl.hidden = true;
   const painelEl = $('#painel');
-  if (painelEl) painelEl.hidden = false;
+  if (painelEl && temDados) painelEl.hidden = false;
   const controlesEl = $('#controles');
-  if (controlesEl) controlesEl.hidden = false;
+  if (controlesEl && temDados) controlesEl.hidden = false;
   const abasEl = $('#abas');
   if (abasEl) abasEl.hidden = false;
   const faixaExemploEl = $('#faixa-exemplo');
   if (faixaExemploEl) faixaExemploEl.hidden = !exemplo;
 
   if (callbacks.renderFontes) callbacks.renderFontes();
-  if (callbacks.irPara) callbacks.irPara(primeira ? 'carteira' : S.aba, primeira);
+  const destino = S.aba === 'base' || (temBase && !temPos) ? 'base' : (primeira ? 'carteira' : S.aba);
+  if (callbacks.irPara) callbacks.irPara(destino, primeira);
 }

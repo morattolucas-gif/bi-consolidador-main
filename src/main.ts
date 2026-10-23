@@ -86,6 +86,18 @@ export function render() {
 
 export function irPara(aba: string, rolar: boolean = true) {
   S.aba = aba;
+  const painelEl = $('#painel');
+  if (painelEl && (aba === 'base' || S.posicoes.length > 0 || S.baseBtg?.length > 0)) {
+    painelEl.hidden = false;
+  }
+  const vazioEl = $('#vazio');
+  if (vazioEl && (aba === 'base' || S.posicoes.length > 0 || S.baseBtg?.length > 0)) {
+    vazioEl.hidden = true;
+  }
+  const controlesEl = $('#controles');
+  if (controlesEl && (S.posicoes.length > 0 || S.baseBtg?.length > 0)) {
+    controlesEl.hidden = false;
+  }
   document.querySelectorAll('.abas button').forEach(b => {
     b.setAttribute('aria-selected', String((b as HTMLElement).dataset.aba === aba));
   });
