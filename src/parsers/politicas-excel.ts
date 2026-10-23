@@ -2,8 +2,12 @@ import * as XLSX from 'xlsx';
 import { norm, chaveConta } from '../components/formatters';
 import { POLITICA_PADRAO, CLASSES_EST, RISCO_CREDITO } from '../domain/constants';
 import type { PoliticaInvestimento } from '../types';
+import { ehBaseBtgExcel } from './base-btg';
 
 export function ehPoliticasExcel(wb: XLSX.WorkBook): boolean {
+  // Planilha de CRM/Base BTG tem prioridade e nunca deve ser tratada como política de alocação
+  if (ehBaseBtgExcel(wb)) return false;
+
   const abas = wb.SheetNames.map(norm);
   if (abas.some(a => a.includes('politica') || a.includes('classes estrategicas') || a.includes('risco credito') || a.includes('alocacao alvo'))) {
     return true;
@@ -12,7 +16,16 @@ export function ehPoliticasExcel(wb: XLSX.WorkBook): boolean {
     const rows: any[][] = XLSX.utils.sheet_to_json(wb.Sheets[s], { header: 1, raw: true, defval: '' });
     for (const r of rows.slice(0, 10)) {
       const line = (r || []).map(c => norm(String(c)));
-      if (line.includes('conta') && (line.some(c => c.includes('alvo') || c.includes('min') || c.includes('max')) || line.some(c => c.includes('pos') || c.includes('infl')))) {
+      const temConta = line.includes('conta');
+      const temColPolitica = line.some(c =>
+        /\b(alvo|target|ips)\b/.test(c) ||
+        /\b(minimo|minima|maximo|maxima)\b/.test(c) ||
+        c === 'min' || c === 'max' || c === '% min' || c === '% max' || c === '% alvo'
+      );
+      const temClassesAlocacao = line.some(c =>
+        c.includes('pos-fixado') || c.includes('pos fixado') || c.includes('inflacao') || c.includes('pre-fixado') || c.includes('multimercado')
+      );
+      if (temConta && (temColPolitica || temClassesAlocacao)) {
         return true;
       }
     }

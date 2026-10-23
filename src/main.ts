@@ -33,6 +33,7 @@ import {
   lerPasta,
   atualizarComPasta,
   processarArquivos,
+  processarArquivo,
   avisarPlanilhaAntiga,
   aplicarCadastro,
   lerCadastroDaPasta,
@@ -107,6 +108,7 @@ export function irPara(aba: string, rolar: boolean = true) {
   render();
   if (rolar) window.scrollTo({ top: 0 });
 }
+(window as any).irPara = irPara;
 
 // Barra acima das abas: planilha do BTG carregada (arquivo, posição, lida em) e os botões de extratos
 function renderFontes() {
@@ -180,17 +182,36 @@ $('#btn-historico')?.addEventListener('click', () => abrirHistorico());
 $('#btn-cadastro')?.addEventListener('click', () => editarCadastro());
 $('#btn-usuario')?.addEventListener('click', () => perguntarUsuario());
 function carregarBaseBtgArquivo() {
-  const inp = document.createElement('input');
-  inp.type = 'file';
-  inp.accept = '.xlsx,.xls';
-  inp.onchange = async () => {
-    const f = inp.files?.[0];
+  const inp = $('#input-base-btg') as HTMLInputElement;
+  if (inp) {
+    inp.click();
+  }
+}
+
+const inputBaseBtg = $('#input-base-btg') as HTMLInputElement;
+if (inputBaseBtg) {
+  inputBaseBtg.addEventListener('change', async () => {
+    const f = inputBaseBtg.files?.[0];
     if (!f) return;
-    const { processarArquivo } = await import('./parsers/pasta');
-    await processarArquivo(f);
-    irPara('base');
-  };
-  inp.click();
+    const aviso = $('#aviso-carga');
+    try {
+      if (aviso) {
+        aviso.textContent = `Carregando Base BTG (${f.name})…`;
+        aviso.hidden = false;
+      }
+      await processarArquivo(f);
+      irPara('base');
+    } catch (err: any) {
+      const errEl = $('#erro');
+      if (errEl) {
+        errEl.textContent = `Erro ao ler Base BTG: ${err.message || err}`;
+        errEl.hidden = false;
+      }
+    } finally {
+      if (aviso) aviso.hidden = true;
+      inputBaseBtg.value = '';
+    }
+  });
 }
 
 $('#btn-vazio-posicao')?.addEventListener('click', e => { e.stopPropagation(); anexarExtrato({ modo: 'posicao' }); });

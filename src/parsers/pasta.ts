@@ -198,11 +198,11 @@ export async function lerArquivo(arquivo: Blob | File, opc: { tipo?: string; ins
     const buffer = tipo === 'foto' ? null : await arquivo.arrayBuffer();
     if (tipo === 'excel') {
       const wb = XLSX.read(buffer, { type: 'array' });
-      if (ehPoliticasExcel(wb)) {
-        return { politicas: lerPoliticasExcel(wb) };
-      }
       if (ehBaseBtgExcel(wb)) {
         return { baseBtg: lerBaseBtgExcel(wb) };
+      }
+      if (ehPoliticasExcel(wb)) {
+        return { politicas: lerPoliticasExcel(wb) };
       }
       if (ehExtratoBTG(wb)) ext = lerExtratoBTG(wb);
       else {
@@ -246,7 +246,15 @@ export async function processarArquivo(arquivo: Blob | File, opc: { tipo?: strin
     await salvarBaseBtg();
     registrar('Base BTG importada', `${r.baseBtg.length} contas carregadas via ${(arquivo as File).name || 'Excel'}`);
     recalcular();
-    alert(`Base BTG carregada com sucesso: ${r.baseBtg.length} contas processadas para o plano de negócio.`);
+    const aviso = $('#aviso-carga');
+    if (aviso) {
+      aviso.textContent = `Base BTG carregada com sucesso: ${r.baseBtg.length} contas processadas.`;
+      aviso.hidden = false;
+      setTimeout(() => { if (aviso) aviso.hidden = true; }, 4000);
+    }
+    if (typeof (window as any).irPara === 'function') {
+      (window as any).irPara('base');
+    }
     return { baseBtg: true };
   }
   if (r.macro) {
@@ -296,14 +304,19 @@ export async function processarArquivos(arquivos: (Blob | File)[], opc: { tipo?:
       erro(a, e);
     }
   }
-  const primeiro = (x: { r: any }) => (x.r.macro || x.r.politicas ? 0 : 1);
+  const primeiro = (x: { r: any }) => (x.r.macro || x.r.politicas || x.r.baseBtg ? 0 : 1);
   lidos.sort((x, y) => primeiro(x) - primeiro(y));
+  let teveBase = false;
   for (const { a, o, r } of lidos) {
     try {
-      await processarArquivo(a, o, r);
+      const res = await processarArquivo(a, o, r);
+      if (res?.baseBtg) teveBase = true;
     } catch (e: any) {
       erro(a, e);
     }
+  }
+  if (teveBase && typeof (window as any).irPara === 'function') {
+    (window as any).irPara('base');
   }
 }
 

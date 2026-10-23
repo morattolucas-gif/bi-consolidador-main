@@ -54,4 +54,17 @@ describe('Parser Base BTG (Export / CRM / Plano de Negócio)', () => {
 
     expect(ehBaseBtgExcel(wb)).toBe(false);
   });
+
+  it('garante que a Base BTG com coluna Carteira Administrada não seja capturada por ehPoliticasExcel', async () => {
+    const { ehPoliticasExcel } = await import('../src/parsers/politicas-excel');
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.aoa_to_sheet([
+      ['Conta', 'Nome', 'Assessor', 'Tipo Parceiro', 'Carteira Administrada', 'Tipo', 'PL Total', 'Status Ranking'],
+      ['1001', 'Cliente Alfa', 'Assessor 1', 'AAI', 'Sim', 'PF', 150000, 'Ativa'],
+    ]);
+    XLSX.utils.book_append_sheet(wb, ws, 'Export');
+
+    expect(ehBaseBtgExcel(wb)).toBe(true);
+    expect(ehPoliticasExcel(wb)).toBe(false);
+  });
 });
