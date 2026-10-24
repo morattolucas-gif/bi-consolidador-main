@@ -160,9 +160,14 @@ export function calcularSimulacaoPlano(itensTodos: ItemUnidade[]): ResultadoSimu
   const taxaPjAm = (sim.taxaPjAa / 100) / 12;
   const prazo = Math.max(1, Math.round(sim.prazoMeses || 6));
 
+  const faixasBase = S.faixasBase || FAIXAS_PADRAO_BASE;
+  const selFaixas = sim.faixasSelecionadas || [];
+  const faixasAtivas = faixasBase.filter(f => selFaixas.includes(f.rotulo));
+
   const elegiveis = itensTodos.filter(c => {
     if (c.plTotal <= 0) return false;
-    if (c.plTotal < sim.faixaMin || c.plTotal > sim.faixaMax) return false;
+    const pertenceFaixa = faixasAtivas.some(f => c.plTotal >= f.min && c.plTotal < f.max);
+    if (!pertenceFaixa) return false;
     if (sim.excluirEstrangeiros && (c.tipo === 'Estrangeiro' || norm(c.tipoInvestidor || '').includes('estrangeiro'))) {
       return false;
     }
@@ -472,7 +477,7 @@ export function renderBaseClientes() {
     </div>
 
     <!-- SEÇÃO SIMULADOR DE PLANO DE NEGÓCIOS -->
-    ${renderSecaoSimulador(simRes, assessores)}
+    ${renderSecaoSimulador(simRes, assessores, itensTodos)}
 
     <!-- Tabela Matriz por Faixa e Tipo -->
     <div class="cartao cartao-destaque" style="margin-bottom:16px;">
@@ -742,8 +747,10 @@ function vincularEventosBase(itensTodos: ItemUnidade[], simRes: ResultadoSimulac
   vincularEventosSimulador(itensTodos, simRes);
 }
 
-function renderSecaoSimulador(res: ResultadoSimulacaoPlano, assessores: string[]): string {
+function renderSecaoSimulador(res: ResultadoSimulacaoPlano, assessores: string[], itensTodos: ItemUnidade[]): string {
   const sim = S.simuladorPlano;
+  const faixas = S.faixasBase || FAIXAS_PADRAO_BASE;
+  const qtdFaixasSel = sim.faixasSelecionadas.length;
 
   return `
     <div class="cartao" id="secao-simulador" style="border: 2px solid var(--s1); background: linear-gradient(180deg, rgba(42,120,214,0.04) 0%, var(--surface) 100%); margin-bottom: 20px; border-radius: 12px; padding: 18px 20px; box-shadow: 0 4px 18px rgba(4,20,45,0.06);">
@@ -755,7 +762,7 @@ function renderSecaoSimulador(res: ResultadoSimulacaoPlano, assessores: string[]
           <div>
             <h2 style="font-size:16px;margin:0 0 2px;font-weight:750;color:var(--ink);">Simulador de Plano de Negócios — Carteira Administrada</h2>
             <p class="sec" style="margin:0;font-size:12.5px;">
-              Projeção fiduciária de conversão para Fee Fixo: <b>${sim.taxaPfAa}% a.a. (PF)</b> e <b>${sim.taxaPjAa}% a.a. (PJ)</b> ao longo de <b>${res.prazoMeses} meses</b>.
+              Projeção fiduciária com soma de faixas de PL: <b>${sim.taxaPfAa}% a.a. (PF)</b> e <b>${sim.taxaPjAa}% a.a. (PJ)</b> em <b>${res.prazoMeses} meses</b>.
             </p>
           </div>
         </div>
@@ -766,8 +773,8 @@ function renderSecaoSimulador(res: ResultadoSimulacaoPlano, assessores: string[]
         </div>
       </div>
 
-      <!-- Barra de Parâmetros Interativos -->
-      <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));gap:14px;background:var(--surface);padding:14px 16px;border-radius:10px;border:1px solid var(--grid);margin-bottom:16px;">
+      <!-- Barra de Parâmetros Gerais (Prazo, Taxas e Filtros) -->
+      <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));gap:14px;background:var(--surface);padding:14px 16px;border-radius:10px;border:1px solid var(--grid);margin-bottom:14px;">
         
         <!-- Prazo em Meses -->
         <div>
@@ -806,21 +813,6 @@ function renderSecaoSimulador(res: ResultadoSimulacaoPlano, assessores: string[]
           </div>
         </div>
 
-        <!-- Faixa de PL Alvo -->
-        <div>
-          <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;color:var(--ink-2);">
-            🎯 Faixa de PL Alvo
-          </label>
-          <select id="sim-sel-faixa" style="width:100%;padding:5px 8px;border-radius:6px;border:1px solid var(--border);font-size:12px;">
-            <option value="100k-500k" ${sim.faixaPredefinida === '100k-500k' ? 'selected' : ''}>🎯 100k a 500 mil (Foco Principal)</option>
-            <option value="ate-100k" ${sim.faixaPredefinida === 'ate-100k' ? 'selected' : ''}>Até 100 mil</option>
-            <option value="500k-1mi" ${sim.faixaPredefinida === '500k-1mi' ? 'selected' : ''}>500 mil a 1 milhão</option>
-            <option value="1mi-5mi" ${sim.faixaPredefinida === '1mi-5mi' ? 'selected' : ''}>1 milhão a 5 milhões</option>
-            <option value="acima-5mi" ${sim.faixaPredefinida === 'acima-5mi' ? 'selected' : ''}>Acima de 5 milhões</option>
-            <option value="todas-saldo" ${sim.faixaPredefinida === 'todas-saldo' ? 'selected' : ''}>Todas com Saldo (> 0)</option>
-          </select>
-        </div>
-
         <!-- Opções Adicionais (Estrangeiros e Assessor) -->
         <div style="display:flex;flex-direction:column;justify-content:center;gap:6px;">
           <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;">
@@ -834,6 +826,57 @@ function renderSecaoSimulador(res: ResultadoSimulacaoPlano, assessores: string[]
               ${assessores.map(a => `<option value="${esc(a)}" ${sim.assessorSel === a ? 'selected' : ''}>${esc(a)}</option>`).join('')}
             </select>
           </div>
+        </div>
+      </div>
+
+      <!-- SELEÇÃO MÚLTIPLA DE FAIXAS DE PL (SOMA DINÂMICA) -->
+      <div style="background:var(--surface);padding:14px 16px;border-radius:10px;border:1px solid var(--grid);margin-bottom:16px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:10px;">
+          <div>
+            <span style="font-size:12.5px;font-weight:700;color:var(--ink);">🎯 Faixas de Patrimônio Líquido Alvo (Múltipla Seleção & Soma)</span>
+            <span class="sec" style="font-size:12px;margin-left:6px;">
+              Marque as faixas desejadas para somar o AuM e as receitas projetadas:
+            </span>
+          </div>
+          <!-- Presets rápidos -->
+          <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
+            <span style="font-size:11px;color:var(--muted);margin-right:2px;">Atalhos:</span>
+            <button type="button" class="btn btn-sm btn-preset-faixa" data-preset="foco" style="font-size:11px;padding:3px 8px;">🎯 100k a 500k</button>
+            <button type="button" class="btn btn-sm btn-preset-faixa" data-preset="expandido" style="font-size:11px;padding:3px 8px;">🚀 100k a 1 Milhão</button>
+            <button type="button" class="btn btn-sm btn-preset-faixa" data-preset="hnw" style="font-size:11px;padding:3px 8px;">⭐ Acima de 500k</button>
+            <button type="button" class="btn btn-sm btn-preset-faixa" data-preset="todas" style="font-size:11px;padding:3px 8px;">✅ Todas com Saldo</button>
+            <button type="button" class="btn btn-sm btn-link btn-preset-faixa" data-preset="limpar" style="font-size:11px;padding:3px 8px;color:var(--muted);">[Limpar]</button>
+          </div>
+        </div>
+
+        <!-- Grade de Checkboxes de Faixas -->
+        <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(200px, 1fr));gap:8px;" id="sim-faixas-checkboxes">
+          ${faixas.map(fx => {
+            const estaSel = sim.faixasSelecionadas.includes(fx.rotulo);
+            const doGrupo = itensTodos.filter(c => c.plTotal >= fx.min && c.plTotal < fx.max && (!sim.excluirEstrangeiros || (c.tipo !== 'Estrangeiro' && !norm(c.tipoInvestidor || '').includes('estrangeiro'))));
+            const plGrupo = doGrupo.reduce((s, c) => s + (c.plTotal > 0 ? c.plTotal : 0), 0);
+            return `
+              <label style="display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:8px;border:1.5px solid ${estaSel ? 'var(--s1)' : 'var(--grid)'};background:${estaSel ? 'rgba(42,120,214,0.08)' : 'var(--surface-2)'};cursor:pointer;user-select:none;transition:all .15s ease;">
+                <input type="checkbox" class="chk-sim-faixa" data-faixa="${esc(fx.rotulo)}" ${estaSel ? 'checked' : ''} style="accent-color:var(--s1);width:16px;height:16px;cursor:pointer;">
+                <div style="flex:1;min-width:0;">
+                  <div style="font-size:12.5px;font-weight:${estaSel ? '700' : '600'};color:${estaSel ? 'var(--s1)' : 'var(--ink)'};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+                    ${esc(fx.rotulo)}
+                  </div>
+                  <div style="font-size:11px;color:var(--muted);">
+                    <b>${inteiro(doGrupo.length)} contas</b> · ${brlCurto(plGrupo)}
+                  </div>
+                </div>
+              </label>
+            `;
+          }).join('')}
+        </div>
+
+        <div style="margin-top:10px;font-size:11.5px;color:var(--ink-2);display:flex;align-items:center;gap:6px;">
+          <span>ℹ️</span>
+          <span>
+            <b>${qtdFaixasSel}</b> ${qtdFaixasSel === 1 ? 'faixa selecionada' : 'faixas selecionadas'}:
+            ${qtdFaixasSel > 0 ? `<b>${sim.faixasSelecionadas.join(' + ')}</b> (${inteiro(res.totalContas)} contas somadas · AuM Total: <b>${brlCurto(res.totalPl)}</b>)` : '<span style="color:var(--crit);font-weight:600;">Nenhuma faixa selecionada. Marque ao menos uma faixa acima.</span>'}
+          </span>
         </div>
       </div>
 
@@ -1070,16 +1113,41 @@ function vincularEventosSimulador(itensTodos: ItemUnidade[], res: ResultadoSimul
     }
   });
 
-  // Faixa select
-  $('#sim-sel-faixa')?.addEventListener('change', e => {
-    const val = (e.target as HTMLSelectElement).value;
-    const fx = FAIXAS_PREDEFINIDAS_SIM[val];
-    if (fx) {
-      S.simuladorPlano.faixaMin = fx.min;
-      S.simuladorPlano.faixaMax = fx.max;
-      S.simuladorPlano.faixaPredefinida = val;
+  // Checkboxes de faixas múltiplas
+  document.querySelectorAll('.chk-sim-faixa').forEach(chk => {
+    chk.addEventListener('change', () => {
+      const fx = (chk as HTMLInputElement).dataset.faixa;
+      if (!fx) return;
+      const set = new Set(S.simuladorPlano.faixasSelecionadas || []);
+      if ((chk as HTMLInputElement).checked) {
+        set.add(fx);
+      } else {
+        set.delete(fx);
+      }
+      S.simuladorPlano.faixasSelecionadas = [...set];
       renderBaseClientes();
-    }
+    });
+  });
+
+  // Presets rápidos de faixas
+  document.querySelectorAll('.btn-preset-faixa').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      const preset = (btn as HTMLElement).dataset.preset;
+      const faixas = S.faixasBase || FAIXAS_PADRAO_BASE;
+      if (preset === 'foco') {
+        S.simuladorPlano.faixasSelecionadas = ['100 a 500 mil'];
+      } else if (preset === 'expandido') {
+        S.simuladorPlano.faixasSelecionadas = ['100 a 500 mil', '500 mil a 1 mi'];
+      } else if (preset === 'hnw') {
+        S.simuladorPlano.faixasSelecionadas = ['500 mil a 1 mi', '1 a 5 mi', 'Acima de 5 mi'];
+      } else if (preset === 'todas') {
+        S.simuladorPlano.faixasSelecionadas = faixas.filter(f => f.min >= 0.01).map(f => f.rotulo);
+      } else if (preset === 'limpar') {
+        S.simuladorPlano.faixasSelecionadas = [];
+      }
+      renderBaseClientes();
+    });
   });
 
   // Estrangeiros checkbox
@@ -1117,7 +1185,8 @@ export function exportarSimulacaoExcel(res: ResultadoSimulacaoPlano) {
 
   // 1. Resumo do Plano
   const resumo = [
-    { Indicador: 'Faixa de Patrimônio Líquido', Valor: S.simuladorPlano.faixaPredefinida === '100k-500k' ? '100k a 500 mil (Foco)' : `R$ ${S.simuladorPlano.faixaMin.toLocaleString('pt-BR')} a R$ ${S.simuladorPlano.faixaMax.toLocaleString('pt-BR')}` },
+    { Indicador: 'Faixas de PL Selecionadas (Soma)', Valor: S.simuladorPlano.faixasSelecionadas.length ? S.simuladorPlano.faixasSelecionadas.join(' + ') : 'Nenhuma faixa' },
+    { Indicador: 'Qtd de Faixas Somadas', Valor: S.simuladorPlano.faixasSelecionadas.length },
     { Indicador: 'Prazo de Conversão', Valor: `${res.prazoMeses} meses` },
     { Indicador: 'Taxa Fee PF (% a.a.)', Valor: `${res.taxaPfAa}% a.a. (= ${(res.taxaPfAm * 100).toFixed(4)}% a.m.)` },
     { Indicador: 'Taxa Fee PJ (% a.a.)', Valor: `${res.taxaPjAa}% a.a. (= ${(res.taxaPjAm * 100).toFixed(4)}% a.m.)` },

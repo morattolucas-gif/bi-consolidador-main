@@ -59,9 +59,7 @@ export const S: EstadoGlobal = {
     prazoMeses: 6,
     taxaPfAa: 0.75,
     taxaPjAa: 0.30,
-    faixaMin: 100000,
-    faixaMax: 500000,
-    faixaPredefinida: '100k-500k',
+    faixasSelecionadas: ['100 a 500 mil'],
     excluirEstrangeiros: true,
     assessorSel: '',
     subAba: 'evolucao'

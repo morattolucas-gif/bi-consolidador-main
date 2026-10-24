@@ -76,9 +76,7 @@ describe('Parser Base BTG (Export / CRM / Plano de Negócio)', () => {
       prazoMeses: 6,
       taxaPfAa: 0.75,
       taxaPjAa: 0.30,
-      faixaMin: 100000,
-      faixaMax: 500000,
-      faixaPredefinida: '100k-500k',
+      faixasSelecionadas: ['100 a 500 mil'],
       excluirEstrangeiros: true,
       assessorSel: '',
       subAba: 'evolucao'
@@ -88,12 +86,12 @@ describe('Parser Base BTG (Export / CRM / Plano de Negócio)', () => {
       { chave: '1', conta: '1', contas: ['1'], nome: 'PF 1', tipo: 'PF', plTotal: 200000, assessor: 'Assessor A', status: 'Ativa', tipoInvestidor: 'Geral' },
       { chave: '2', conta: '2', contas: ['2'], nome: 'PJ 1', tipo: 'PJ', plTotal: 400000, assessor: 'Assessor A', status: 'Ativa', tipoInvestidor: 'Geral' },
       { chave: '3', conta: '3', contas: ['3'], nome: 'Estrangeiro', tipo: 'Estrangeiro', plTotal: 300000, assessor: 'Assessor B', status: 'Ativa', tipoInvestidor: 'Estrangeiro' },
-      { chave: '4', conta: '4', contas: ['4'], nome: 'PF Fora', tipo: 'PF', plTotal: 600000, assessor: 'Assessor B', status: 'Ativa', tipoInvestidor: 'Geral' },
+      { chave: '4', conta: '4', contas: ['4'], nome: 'PF 500k-1M', tipo: 'PF', plTotal: 600000, assessor: 'Assessor B', status: 'Ativa', tipoInvestidor: 'Geral' },
     ];
 
     const res = calcularSimulacaoPlano(itensMock);
 
-    expect(res.totalContas).toBe(2); // PF 1 e PJ 1 (estrangeiro excluído, PF Fora > 500k)
+    expect(res.totalContas).toBe(2); // PF 1 e PJ 1 (estrangeiro excluído, PF 500k-1M está na faixa seguinte)
     expect(res.pfContas).toBe(1);
     expect(res.pjContas).toBe(1);
     expect(res.totalPl).toBe(600000);
@@ -110,5 +108,15 @@ describe('Parser Base BTG (Export / CRM / Plano de Negócio)', () => {
     // 6 meses de evolução
     expect(res.evolucaoMeses.length).toBe(6);
     expect(res.evolucaoMeses[5].receitaTotal).toBeCloseTo(225, 2);
+
+    // Agora adiciona a faixa '500 mil a 1 mi' para testar a SOMA das faixas
+    S.simuladorPlano.faixasSelecionadas = ['100 a 500 mil', '500 mil a 1 mi'];
+    const resSoma = calcularSimulacaoPlano(itensMock);
+    expect(resSoma.totalContas).toBe(3); // 2 de antes + PF 500k-1M (600k)
+    expect(resSoma.pfContas).toBe(2);
+    expect(resSoma.totalPl).toBe(1200000); // 600k + 600k
+    // Receita PF adicional: 600.000 * 0.000625 = 375. Total PF = 125 + 375 = 500
+    expect(resSoma.receitaPfMensalPlena).toBeCloseTo(500, 2);
+    expect(resSoma.receitaMensalPlena).toBeCloseTo(600, 2); // 500 PF + 100 PJ
   });
 });

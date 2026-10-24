@@ -180,9 +180,7 @@ export interface SimuladorPlanoConfig {
   prazoMeses: number;
   taxaPfAa: number;
   taxaPjAa: number;
-  faixaMin: number;
-  faixaMax: number;
-  faixaPredefinida: string;
+  faixasSelecionadas: string[];
   excluirEstrangeiros: boolean;
   assessorSel: string;
   subAba: 'evolucao' | 'assessores' | 'contas';
