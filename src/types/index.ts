@@ -174,6 +174,7 @@ export interface EstadoGlobal {
     tipoSel: string | null;
   };
   simuladorPlano: SimuladorPlanoConfig;
+  baseBlocosRecolhidos: Record<string, boolean>;
 }
 
 export interface SimuladorPlanoConfig {

@@ -392,42 +392,47 @@ export function renderBaseClientes() {
           Análise fiduciária e segmentação de contas por tipo (PF/PJ) e faixas de patrimônio da Base BTG.
         </p>
       </div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;">
-        <button type="button" class="btn" id="btn-editar-faixas">⚙️ Editar Faixas de PL</button>
-        <button type="button" class="btn btn-pri" id="btn-exportar-plano">📊 Exportar Apresentação (Excel)</button>
-        <button type="button" class="btn" id="btn-trocar-base">📁 Atualizar Planilha BTG</button>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+        <button type="button" class="btn btn-sm btn-toggle-bloco" data-bloco="kpis" title="Minimizar ou expandir os indicadores de resumo">
+          ${S.baseBlocosRecolhidos.kpis ? '▸ Expandir Resumo (KPIs)' : '▾ Minimizar Resumo'}
+        </button>
+        <button type="button" class="btn btn-sm" id="btn-editar-faixas">⚙️ Editar Faixas de PL</button>
+        <button type="button" class="btn btn-sm btn-pri" id="btn-exportar-plano">📊 Exportar Apresentação (Excel)</button>
+        <button type="button" class="btn btn-sm" id="btn-trocar-base">📁 Atualizar Planilha BTG</button>
         <input type="file" id="arq-trocar-base" accept=".xlsx,.xls" hidden>
       </div>
     </div>
 
     <!-- KPIs de Destaque -->
-    <div class="kpis" style="margin-bottom:16px;">
-      <div class="kpi">
-        <span class="kpi-rot">${S.filtroBase.modo === 'cliente' ? 'Clientes Únicos' : 'Total de Contas'}</span>
-        <b class="kpi-val">${inteiro(itens.length)}</b>
-        <span class="kpi-sub">${inteiro(itens.filter(x => x.tipo === 'PF').length)} PF · ${inteiro(itens.filter(x => x.tipo === 'PJ').length)} PJ</span>
+    ${!S.baseBlocosRecolhidos.kpis ? `
+      <div class="kpis" style="margin-bottom:16px;">
+        <div class="kpi">
+          <span class="kpi-rot">${S.filtroBase.modo === 'cliente' ? 'Clientes Únicos' : 'Total de Contas'}</span>
+          <b class="kpi-val">${inteiro(itens.length)}</b>
+          <span class="kpi-sub">${inteiro(itens.filter(x => x.tipo === 'PF').length)} PF · ${inteiro(itens.filter(x => x.tipo === 'PJ').length)} PJ</span>
+        </div>
+        <div class="kpi">
+          <span class="kpi-rot">Patrimônio Líquido Total</span>
+          <b class="kpi-val">${brlCurto(plTotalGeral)}</b>
+          <span class="kpi-sub">${inteiro(totalContasComPL)} com saldo positivo</span>
+        </div>
+        <div class="kpi" style="border-left:3px solid var(--s1);background:rgba(42,120,214,0.06);">
+          <span class="kpi-rot" style="color:var(--s1);font-weight:700;">🎯 Foco: 100k a 500 mil</span>
+          <b class="kpi-val" style="color:var(--s1);">${inteiro(itens100a500.length)}</b>
+          <span class="kpi-sub"><b>${pf100a500} PF</b> e <b>${pj100a500} PJ</b> (${brlCurto(pl100a500)})</span>
+        </div>
+        <div class="kpi">
+          <span class="kpi-rot">Ticket Médio (PL &gt; 0)</span>
+          <b class="kpi-val">${brlCurto(ticketMedio)}</b>
+          <span class="kpi-sub">por ${S.filtroBase.modo === 'cliente' ? 'cliente' : 'conta'}</span>
+        </div>
+        <div class="kpi">
+          <span class="kpi-rot">Contas Ativas</span>
+          <b class="kpi-val">${pct(pctAtivas, 1)}</b>
+          <span class="kpi-sub">${inteiro(ativas)} de ${inteiro(itens.length)} contas</span>
+        </div>
       </div>
-      <div class="kpi">
-        <span class="kpi-rot">Patrimônio Líquido Total</span>
-        <b class="kpi-val">${brlCurto(plTotalGeral)}</b>
-        <span class="kpi-sub">${inteiro(totalContasComPL)} com saldo positivo</span>
-      </div>
-      <div class="kpi" style="border-left:3px solid var(--s1);background:rgba(42,120,214,0.06);">
-        <span class="kpi-rot" style="color:var(--s1);font-weight:700;">🎯 Foco: 100k a 500 mil</span>
-        <b class="kpi-val" style="color:var(--s1);">${inteiro(itens100a500.length)}</b>
-        <span class="kpi-sub"><b>${pf100a500} PF</b> e <b>${pj100a500} PJ</b> (${brlCurto(pl100a500)})</span>
-      </div>
-      <div class="kpi">
-        <span class="kpi-rot">Ticket Médio (PL &gt; 0)</span>
-        <b class="kpi-val">${brlCurto(ticketMedio)}</b>
-        <span class="kpi-sub">por ${S.filtroBase.modo === 'cliente' ? 'cliente' : 'conta'}</span>
-      </div>
-      <div class="kpi">
-        <span class="kpi-rot">Contas Ativas</span>
-        <b class="kpi-val">${pct(pctAtivas, 1)}</b>
-        <span class="kpi-sub">${inteiro(ativas)} de ${inteiro(itens.length)} contas</span>
-      </div>
-    </div>
+    ` : ''}
 
     <!-- Barra de Filtros e Parâmetros -->
     <div class="cartao" style="margin-bottom:16px;padding:12px 16px;">
@@ -486,102 +491,109 @@ export function renderBaseClientes() {
           <h2>Matriz de Segmentação por Faixa de Patrimônio e Tipo de Cliente</h2>
           <p>Distribuição de contas e volume financeiro. Clique em qualquer número para filtrar a lista detalhada abaixo.</p>
         </div>
-        ${S.filtroBase.faixaSel || S.filtroBase.tipoSel ? `
-          <div style="font-size:12px;background:var(--surface-2);padding:4px 10px;border-radius:6px;">
-            Filtro ativo: <b>${esc(S.filtroBase.faixaSel || 'Todas as faixas')}</b> ${S.filtroBase.tipoSel ? `· <b>${esc(S.filtroBase.tipoSel)}</b>` : ''}
-            <button type="button" class="btn-link" id="btn-reset-selecao" style="margin-left:8px;font-size:11px;">[Desmarcar]</button>
-          </div>
-        ` : ''}
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+          ${S.filtroBase.faixaSel || S.filtroBase.tipoSel ? `
+            <div style="font-size:12px;background:var(--surface-2);padding:4px 10px;border-radius:6px;">
+              Filtro ativo: <b>${esc(S.filtroBase.faixaSel || 'Todas as faixas')}</b> ${S.filtroBase.tipoSel ? `· <b>${esc(S.filtroBase.tipoSel)}</b>` : ''}
+              <button type="button" class="btn-link" id="btn-reset-selecao" style="margin-left:8px;font-size:11px;">[Desmarcar]</button>
+            </div>
+          ` : ''}
+          <button type="button" class="btn btn-sm btn-toggle-bloco" data-bloco="matriz" title="Minimizar ou expandir a Matriz de Segmentação">
+            ${S.baseBlocosRecolhidos.matriz ? '▸ Expandir Matriz' : '▾ Minimizar'}
+          </button>
+        </div>
       </div>
 
-      <div style="overflow-x:auto;">
-        <table class="tabela-base" style="width:100%;border-collapse:collapse;font-size:13px;">
-          <thead>
-            <tr style="border-bottom:2px solid var(--grid);background:var(--surface-2);">
-              <th style="text-align:left;padding:10px 12px;">Faixa de Patrimônio</th>
-              <th style="text-align:center;padding:10px 12px;background:rgba(42,120,214,0.06);" colspan="2">Pessoa Física (PF)</th>
-              <th style="text-align:center;padding:10px 12px;background:rgba(142,68,173,0.06);" colspan="2">Pessoa Jurídica (PJ)</th>
-              <th style="text-align:center;padding:10px 12px;" colspan="2">Estrangeiro</th>
-              <th style="text-align:right;padding:10px 12px;background:var(--surface-2);" colspan="2">Total Geral</th>
-              <th style="text-align:right;padding:10px 12px;">Share PL</th>
-            </tr>
-            <tr style="border-bottom:1px solid var(--grid);font-size:11.5px;color:var(--muted);">
-              <th style="text-align:left;padding:6px 12px;">Faixa</th>
-              <th style="text-align:right;padding:6px 8px;background:rgba(42,120,214,0.06);">Contas</th>
-              <th style="text-align:right;padding:6px 8px;background:rgba(42,120,214,0.06);">Volume</th>
-              <th style="text-align:right;padding:6px 8px;background:rgba(142,68,173,0.06);">Contas</th>
-              <th style="text-align:right;padding:6px 8px;background:rgba(142,68,173,0.06);">Volume</th>
-              <th style="text-align:right;padding:6px 8px;">Contas</th>
-              <th style="text-align:right;padding:6px 8px;">Volume</th>
-              <th style="text-align:right;padding:6px 8px;background:var(--surface-2);">Qtd</th>
-              <th style="text-align:right;padding:6px 8px;background:var(--surface-2);">PL</th>
-              <th style="text-align:right;padding:6px 12px;">%</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${matriz.map(m => {
-              const ehFoco = m.faixa.rotulo === '100 a 500 mil';
-              const estaSel = S.filtroBase.faixaSel === m.faixa.rotulo;
-              const bgLinha = estaSel ? 'background:rgba(42,120,214,0.12);' : ehFoco ? 'background:rgba(42,120,214,0.03);' : '';
-              const borderDestaque = ehFoco ? 'box-shadow:inset 3px 0 0 var(--s1);font-weight:600;' : '';
+      ${!S.baseBlocosRecolhidos.matriz ? `
+        <div style="overflow-x:auto;">
+          <table class="tabela-base" style="width:100%;border-collapse:collapse;font-size:13px;">
+            <thead>
+              <tr style="border-bottom:2px solid var(--grid);background:var(--surface-2);">
+                <th style="text-align:left;padding:10px 12px;">Faixa de Patrimônio</th>
+                <th style="text-align:center;padding:10px 12px;background:rgba(42,120,214,0.06);" colspan="2">Pessoa Física (PF)</th>
+                <th style="text-align:center;padding:10px 12px;background:rgba(142,68,173,0.06);" colspan="2">Pessoa Jurídica (PJ)</th>
+                <th style="text-align:center;padding:10px 12px;" colspan="2">Estrangeiro</th>
+                <th style="text-align:right;padding:10px 12px;background:var(--surface-2);" colspan="2">Total Geral</th>
+                <th style="text-align:right;padding:10px 12px;">Share PL</th>
+              </tr>
+              <tr style="border-bottom:1px solid var(--grid);font-size:11.5px;color:var(--muted);">
+                <th style="text-align:left;padding:6px 12px;">Faixa</th>
+                <th style="text-align:right;padding:6px 8px;background:rgba(42,120,214,0.06);">Contas</th>
+                <th style="text-align:right;padding:6px 8px;background:rgba(42,120,214,0.06);">Volume</th>
+                <th style="text-align:right;padding:6px 8px;background:rgba(142,68,173,0.06);">Contas</th>
+                <th style="text-align:right;padding:6px 8px;background:rgba(142,68,173,0.06);">Volume</th>
+                <th style="text-align:right;padding:6px 8px;">Contas</th>
+                <th style="text-align:right;padding:6px 8px;">Volume</th>
+                <th style="text-align:right;padding:6px 8px;background:var(--surface-2);">Qtd</th>
+                <th style="text-align:right;padding:6px 8px;background:var(--surface-2);">PL</th>
+                <th style="text-align:right;padding:6px 12px;">%</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${matriz.map(m => {
+                const ehFoco = m.faixa.rotulo === '100 a 500 mil';
+                const estaSel = S.filtroBase.faixaSel === m.faixa.rotulo;
+                const bgLinha = estaSel ? 'background:rgba(42,120,214,0.12);' : ehFoco ? 'background:rgba(42,120,214,0.03);' : '';
+                const borderDestaque = ehFoco ? 'box-shadow:inset 3px 0 0 var(--s1);font-weight:600;' : '';
 
-              return `
-                <tr style="border-bottom:1px solid var(--grid);cursor:pointer;${bgLinha}${borderDestaque}" data-faixa="${esc(m.faixa.rotulo)}">
-                  <td style="padding:9px 12px;font-weight:600;">
-                    ${ehFoco ? '🎯 ' : ''}${esc(m.faixa.rotulo)}
-                  </td>
-                  <!-- PF -->
-                  <td style="text-align:right;padding:9px 8px;background:rgba(42,120,214,0.04);font-weight:600;" data-click-tipo="PF" data-click-faixa="${esc(m.faixa.rotulo)}" title="Ver contas PF de ${esc(m.faixa.rotulo)}">
-                    ${inteiro(m.pfQtd)}
-                  </td>
-                  <td style="text-align:right;padding:9px 8px;background:rgba(42,120,214,0.04);color:var(--ink-2);" class="num">
-                    ${brlCurto(m.pfPl)}
-                  </td>
-                  <!-- PJ -->
-                  <td style="text-align:right;padding:9px 8px;background:rgba(142,68,173,0.04);font-weight:700;color:#6c3483;" data-click-tipo="PJ" data-click-faixa="${esc(m.faixa.rotulo)}" title="Ver contas PJ de ${esc(m.faixa.rotulo)}">
-                    ${inteiro(m.pjQtd)}
-                  </td>
-                  <td style="text-align:right;padding:9px 8px;background:rgba(142,68,173,0.04);color:var(--ink-2);" class="num">
-                    ${brlCurto(m.pjPl)}
-                  </td>
-                  <!-- Estrangeiro -->
-                  <td style="text-align:right;padding:9px 8px;" class="num" data-click-tipo="Estrangeiro" data-click-faixa="${esc(m.faixa.rotulo)}">
-                    ${inteiro(m.estQtd)}
-                  </td>
-                  <td style="text-align:right;padding:9px 8px;color:var(--muted);" class="num">
-                    ${brlCurto(m.estPl)}
-                  </td>
-                  <!-- Total -->
-                  <td style="text-align:right;padding:9px 8px;font-weight:700;background:var(--surface-2);" class="num" data-click-faixa="${esc(m.faixa.rotulo)}">
-                    ${inteiro(m.totalQtd)}
-                  </td>
-                  <td style="text-align:right;padding:9px 8px;font-weight:700;background:var(--surface-2);" class="num">
-                    ${brlCurto(m.totalPl)}
-                  </td>
-                  <!-- Share PL -->
-                  <td style="text-align:right;padding:9px 12px;font-weight:600;" class="num">
-                    ${pct(m.sharePl, 1)}
-                  </td>
-                </tr>
-              `;
-            }).join('')}
-          </tbody>
-          <tfoot>
-            <tr style="border-top:2px solid var(--marca);font-weight:700;background:var(--surface-2);">
-              <td style="padding:10px 12px;">TOTAL GERAL</td>
-              <td style="text-align:right;padding:10px 8px;" class="num">${inteiro(matriz.reduce((s, m) => s + m.pfQtd, 0))}</td>
-              <td style="text-align:right;padding:10px 8px;" class="num">${brlCurto(matriz.reduce((s, m) => s + m.pfPl, 0))}</td>
-              <td style="text-align:right;padding:10px 8px;color:#6c3483;" class="num">${inteiro(matriz.reduce((s, m) => s + m.pjQtd, 0))}</td>
-              <td style="text-align:right;padding:10px 8px;" class="num">${brlCurto(matriz.reduce((s, m) => s + m.pjPl, 0))}</td>
-              <td style="text-align:right;padding:10px 8px;" class="num">${inteiro(matriz.reduce((s, m) => s + m.estQtd, 0))}</td>
-              <td style="text-align:right;padding:10px 8px;" class="num">${brlCurto(matriz.reduce((s, m) => s + m.estPl, 0))}</td>
-              <td style="text-align:right;padding:10px 8px;" class="num">${inteiro(matriz.reduce((s, m) => s + m.totalQtd, 0))}</td>
-              <td style="text-align:right;padding:10px 8px;" class="num">${brlCurto(plTotalGeral)}</td>
-              <td style="text-align:right;padding:10px 12px;" class="num">100,0%</td>
-            </tr>
-          </tfoot>
-        </table>
-      </div>
+                return `
+                  <tr style="border-bottom:1px solid var(--grid);cursor:pointer;${bgLinha}${borderDestaque}" data-faixa="${esc(m.faixa.rotulo)}">
+                    <td style="padding:9px 12px;font-weight:600;">
+                      ${ehFoco ? '🎯 ' : ''}${esc(m.faixa.rotulo)}
+                    </td>
+                    <!-- PF -->
+                    <td style="text-align:right;padding:9px 8px;background:rgba(42,120,214,0.04);font-weight:600;" data-click-tipo="PF" data-click-faixa="${esc(m.faixa.rotulo)}" title="Ver contas PF de ${esc(m.faixa.rotulo)}">
+                      ${inteiro(m.pfQtd)}
+                    </td>
+                    <td style="text-align:right;padding:9px 8px;background:rgba(42,120,214,0.04);color:var(--ink-2);" class="num">
+                      ${brlCurto(m.pfPl)}
+                    </td>
+                    <!-- PJ -->
+                    <td style="text-align:right;padding:9px 8px;background:rgba(142,68,173,0.04);font-weight:700;color:#6c3483;" data-click-tipo="PJ" data-click-faixa="${esc(m.faixa.rotulo)}" title="Ver contas PJ de ${esc(m.faixa.rotulo)}">
+                      ${inteiro(m.pjQtd)}
+                    </td>
+                    <td style="text-align:right;padding:9px 8px;background:rgba(142,68,173,0.04);color:var(--ink-2);" class="num">
+                      ${brlCurto(m.pjPl)}
+                    </td>
+                    <!-- Estrangeiro -->
+                    <td style="text-align:right;padding:9px 8px;" class="num" data-click-tipo="Estrangeiro" data-click-faixa="${esc(m.faixa.rotulo)}">
+                      ${inteiro(m.estQtd)}
+                    </td>
+                    <td style="text-align:right;padding:9px 8px;color:var(--muted);" class="num">
+                      ${brlCurto(m.estPl)}
+                    </td>
+                    <!-- Total -->
+                    <td style="text-align:right;padding:9px 8px;font-weight:700;background:var(--surface-2);" class="num" data-click-faixa="${esc(m.faixa.rotulo)}">
+                      ${inteiro(m.totalQtd)}
+                    </td>
+                    <td style="text-align:right;padding:9px 8px;font-weight:700;background:var(--surface-2);" class="num">
+                      ${brlCurto(m.totalPl)}
+                    </td>
+                    <!-- Share PL -->
+                    <td style="text-align:right;padding:9px 12px;font-weight:600;" class="num">
+                      ${pct(m.sharePl, 1)}
+                    </td>
+                  </tr>
+                `;
+              }).join('')}
+            </tbody>
+            <tfoot>
+              <tr style="border-top:2px solid var(--marca);font-weight:700;background:var(--surface-2);">
+                <td style="padding:10px 12px;">TOTAL GERAL</td>
+                <td style="text-align:right;padding:10px 8px;" class="num">${inteiro(matriz.reduce((s, m) => s + m.pfQtd, 0))}</td>
+                <td style="text-align:right;padding:10px 8px;" class="num">${brlCurto(matriz.reduce((s, m) => s + m.pfPl, 0))}</td>
+                <td style="text-align:right;padding:10px 8px;color:#6c3483;" class="num">${inteiro(matriz.reduce((s, m) => s + m.pjQtd, 0))}</td>
+                <td style="text-align:right;padding:10px 8px;" class="num">${brlCurto(matriz.reduce((s, m) => s + m.pjPl, 0))}</td>
+                <td style="text-align:right;padding:10px 8px;" class="num">${inteiro(matriz.reduce((s, m) => s + m.estQtd, 0))}</td>
+                <td style="text-align:right;padding:10px 8px;" class="num">${brlCurto(matriz.reduce((s, m) => s + m.estPl, 0))}</td>
+                <td style="text-align:right;padding:10px 8px;" class="num">${inteiro(matriz.reduce((s, m) => s + m.totalQtd, 0))}</td>
+                <td style="text-align:right;padding:10px 8px;" class="num">${brlCurto(plTotalGeral)}</td>
+                <td style="text-align:right;padding:10px 12px;" class="num">100,0%</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      ` : ''}
     </div>
 
     <!-- Tabela Detalhada de Contas da Seleção -->
@@ -595,60 +607,67 @@ export function renderBaseClientes() {
             <span class="muted" style="font-weight:400;font-size:13px;">(${inteiro(selecionadas.length)} encontradas — Total: ${brlCurto(selecionadas.reduce((s, x) => s + (x.plTotal > 0 ? x.plTotal : 0), 0))})</span>
           </h2>
         </div>
-        <button type="button" class="btn" id="btn-exportar-selecao">📥 Baixar Lista Filtrada (Excel)</button>
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+          <button type="button" class="btn btn-sm" id="btn-exportar-selecao">📥 Baixar Lista Filtrada (Excel)</button>
+          <button type="button" class="btn btn-sm btn-toggle-bloco" data-bloco="contas" title="Minimizar ou expandir a lista de contas">
+            ${S.baseBlocosRecolhidos.contas ? '▸ Expandir Contas' : '▾ Minimizar'}
+          </button>
+        </div>
       </div>
 
-      <div style="max-height:480px;overflow:auto;border:1px solid var(--grid);border-radius:8px;">
-        <table style="width:100%;border-collapse:collapse;font-size:12.5px;">
-          <thead style="position:sticky;top:0;background:var(--surface-2);z-index:2;border-bottom:1px solid var(--grid);">
-            <tr>
-              <th style="text-align:left;padding:8px 10px;">Conta</th>
-              <th style="text-align:left;padding:8px 10px;">Nome do Titular</th>
-              <th style="text-align:center;padding:8px 8px;">Tipo</th>
-              <th style="text-align:left;padding:8px 10px;">Assessor</th>
-              <th style="text-align:center;padding:8px 8px;">Status</th>
-              <th style="text-align:left;padding:8px 8px;">Tipo Investidor</th>
-              <th style="text-align:left;padding:8px 8px;">Cidade / UF</th>
-              <th style="text-align:right;padding:8px 10px;">Patrimônio Líquido (PL)</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${selecionadas.slice(0, 500).map(c => `
-              <tr style="border-bottom:1px solid var(--grid);">
-                <td style="padding:6px 10px;font-family:monospace;font-weight:600;">${esc(c.conta)}</td>
-                <td style="padding:6px 10px;font-weight:600;">${esc(c.nome)}</td>
-                <td style="padding:6px 8px;text-align:center;">
-                  <span style="display:inline-block;padding:2px 6px;border-radius:4px;font-size:11px;font-weight:700;${
-                    c.tipo === 'PJ' ? 'background:rgba(142,68,173,0.15);color:#6c3483;' :
-                    c.tipo === 'PF' ? 'background:rgba(42,120,214,0.15);color:#1c5cab;' :
-                    'background:rgba(39,174,96,0.15);color:#196f3d;'
-                  }">
-                    ${esc(c.tipo)}
-                  </span>
-                </td>
-                <td style="padding:6px 10px;color:var(--ink-2);">${esc(c.assessor || '–')}</td>
-                <td style="padding:6px 8px;text-align:center;">
-                  <span style="display:inline-block;padding:2px 6px;border-radius:4px;font-size:11px;font-weight:600;${
-                    norm(c.status) === 'ativa' ? 'background:rgba(46,204,113,0.15);color:#1e8449;' : 'background:rgba(127,140,141,0.15);color:#5d6d7e;'
-                  }">
-                    ${esc(c.status || '–')}
-                  </span>
-                </td>
-                <td style="padding:6px 8px;color:var(--muted);">${esc(c.tipoInvestidor || '–')}</td>
-                <td style="padding:6px 8px;color:var(--muted);">${esc(c.cidade ? `${c.cidade}/${c.estado || ''}` : '–')}</td>
-                <td style="padding:6px 10px;text-align:right;font-weight:700;" class="num">${brl(c.plTotal)}</td>
-              </tr>
-            `).join('')}
-            ${selecionadas.length > 500 ? `
+      ${!S.baseBlocosRecolhidos.contas ? `
+        <div style="max-height:480px;overflow:auto;border:1px solid var(--grid);border-radius:8px;">
+          <table style="width:100%;border-collapse:collapse;font-size:12.5px;">
+            <thead style="position:sticky;top:0;background:var(--surface-2);z-index:2;border-bottom:1px solid var(--grid);">
               <tr>
-                <td colspan="8" style="text-align:center;padding:10px;color:var(--muted);background:var(--surface-2);">
-                  Mostrando as primeiras 500 de ${inteiro(selecionadas.length)} contas. Baixe o Excel para a listagem completa.
-                </td>
+                <th style="text-align:left;padding:8px 10px;">Conta</th>
+                <th style="text-align:left;padding:8px 10px;">Nome do Titular</th>
+                <th style="text-align:center;padding:8px 8px;">Tipo</th>
+                <th style="text-align:left;padding:8px 10px;">Assessor</th>
+                <th style="text-align:center;padding:8px 8px;">Status</th>
+                <th style="text-align:left;padding:8px 8px;">Tipo Investidor</th>
+                <th style="text-align:left;padding:8px 8px;">Cidade / UF</th>
+                <th style="text-align:right;padding:8px 10px;">Patrimônio Líquido (PL)</th>
               </tr>
-            ` : ''}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody>
+              ${selecionadas.slice(0, 500).map(c => `
+                <tr style="border-bottom:1px solid var(--grid);">
+                  <td style="padding:6px 10px;font-family:monospace;font-weight:600;">${esc(c.conta)}</td>
+                  <td style="padding:6px 10px;font-weight:600;">${esc(c.nome)}</td>
+                  <td style="padding:6px 8px;text-align:center;">
+                    <span style="display:inline-block;padding:2px 6px;border-radius:4px;font-size:11px;font-weight:700;${
+                      c.tipo === 'PJ' ? 'background:rgba(142,68,173,0.15);color:#6c3483;' :
+                      c.tipo === 'PF' ? 'background:rgba(42,120,214,0.15);color:#1c5cab;' :
+                      'background:rgba(39,174,96,0.15);color:#196f3d;'
+                    }">
+                      ${esc(c.tipo)}
+                    </span>
+                  </td>
+                  <td style="padding:6px 10px;color:var(--ink-2);">${esc(c.assessor || '–')}</td>
+                  <td style="padding:6px 8px;text-align:center;">
+                    <span style="display:inline-block;padding:2px 6px;border-radius:4px;font-size:11px;font-weight:600;${
+                      norm(c.status) === 'ativa' ? 'background:rgba(46,204,113,0.15);color:#1e8449;' : 'background:rgba(127,140,141,0.15);color:#5d6d7e;'
+                    }">
+                      ${esc(c.status || '–')}
+                    </span>
+                  </td>
+                  <td style="padding:6px 8px;color:var(--muted);">${esc(c.tipoInvestidor || '–')}</td>
+                  <td style="padding:6px 8px;color:var(--muted);">${esc(c.cidade ? `${c.cidade}/${c.estado || ''}` : '–')}</td>
+                  <td style="padding:6px 10px;text-align:right;font-weight:700;" class="num">${brl(c.plTotal)}</td>
+                </tr>
+              `).join('')}
+              ${selecionadas.length > 500 ? `
+                <tr>
+                  <td colspan="8" style="text-align:center;padding:10px;color:var(--muted);background:var(--surface-2);">
+                    Mostrando as primeiras 500 de ${inteiro(selecionadas.length)} contas. Baixe o Excel para a listagem completa.
+                  </td>
+                </tr>
+              ` : ''}
+            </tbody>
+          </table>
+        </div>
+      ` : ''}
     </div>
   `;
 
@@ -743,6 +762,17 @@ function vincularEventosBase(itensTodos: ItemUnidade[], simRes: ResultadoSimulac
   // Editar faixas
   $('#btn-editar-faixas')?.addEventListener('click', () => abrirModalFaixas());
 
+  // Minimizar / Expandir blocos da Base de Clientes
+  document.querySelectorAll('.btn-toggle-bloco').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      const b = (btn as HTMLElement).dataset.bloco;
+      if (!b) return;
+      S.baseBlocosRecolhidos[b] = !S.baseBlocosRecolhidos[b];
+      renderBaseClientes();
+    });
+  });
+
   // Eventos do Simulador de Plano de Negócios
   vincularEventosSimulador(itensTodos, simRes);
 }
@@ -751,6 +781,31 @@ function renderSecaoSimulador(res: ResultadoSimulacaoPlano, assessores: string[]
   const sim = S.simuladorPlano;
   const faixas = S.faixasBase || FAIXAS_PADRAO_BASE;
   const qtdFaixasSel = sim.faixasSelecionadas.length;
+
+  if (S.baseBlocosRecolhidos.simulador) {
+    return `
+      <!-- SEÇÃO SIMULADOR DE PLANO DE NEGÓCIOS (RECOLHIDO) -->
+      <div class="cartao" id="secao-simulador" style="border: 1.5px solid var(--s1); background: linear-gradient(90deg, rgba(42,120,214,0.06) 0%, var(--surface) 100%); margin-bottom: 20px; border-radius: 12px; padding: 12px 18px; box-shadow: 0 2px 10px rgba(4,20,45,0.04); display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
+        <div style="display:flex;align-items:center;gap:12px;">
+          <span style="font-size:24px;">🚀</span>
+          <div>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <h2 style="font-size:15px;margin:0;font-weight:750;color:var(--ink);">Simulador de Plano de Negócios — Carteira Administrada</h2>
+              <span style="background:rgba(42,120,214,0.12);color:var(--s1);padding:2px 8px;border-radius:12px;font-size:11px;font-weight:700;">Recolhido</span>
+            </div>
+            <p class="sec" style="margin:2px 0 0;font-size:12px;">
+              Faixas: <b>${sim.faixasSelecionadas.join(' + ') || 'Nenhuma'}</b> · Alvo: <b>${inteiro(res.totalContas)} contas</b> (${brlCurto(res.totalPl)}) · Receita Mês ${res.prazoMeses}: <b style="color:#0ca30c;">${brl(res.receitaMensalPlena)}/mês</b> · Run-Rate: <b style="color:#0ca30c;">${brl(res.receitaAnualPlena)}/ano</b>
+            </p>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <button type="button" class="btn btn-sm btn-pri btn-toggle-bloco" data-bloco="simulador" style="font-weight:700;box-shadow:0 2px 8px rgba(42,120,214,0.25);">
+            ▸ Expandir Simulador
+          </button>
+        </div>
+      </div>
+    `;
+  }
 
   return `
     <div class="cartao" id="secao-simulador" style="border: 2px solid var(--s1); background: linear-gradient(180deg, rgba(42,120,214,0.04) 0%, var(--surface) 100%); margin-bottom: 20px; border-radius: 12px; padding: 18px 20px; box-shadow: 0 4px 18px rgba(4,20,45,0.06);">
@@ -767,8 +822,11 @@ function renderSecaoSimulador(res: ResultadoSimulacaoPlano, assessores: string[]
           </div>
         </div>
         <div style="display:flex;gap:8px;align-items:center;">
-          <button type="button" class="btn btn-pri" id="btn-exportar-simulacao" style="background:var(--s1);border-color:var(--s1);box-shadow:0 2px 8px rgba(42,120,214,0.25);">
+          <button type="button" class="btn btn-sm btn-pri" id="btn-exportar-simulacao" style="background:var(--s1);border-color:var(--s1);box-shadow:0 2px 8px rgba(42,120,214,0.25);">
             📥 Baixar Projeção (Excel)
+          </button>
+          <button type="button" class="btn btn-sm btn-toggle-bloco" data-bloco="simulador" title="Recolher o simulador para dar destaque à matriz">
+            ▾ Minimizar
           </button>
         </div>
       </div>

@@ -63,5 +63,11 @@ export const S: EstadoGlobal = {
     excluirEstrangeiros: true,
     assessorSel: '',
     subAba: 'evolucao'
+  },
+  baseBlocosRecolhidos: {
+    kpis: false,
+    simulador: true, // Inicia minimizado por padrão para foco inicial na Matriz
+    matriz: false,
+    contas: false
   }
 };
