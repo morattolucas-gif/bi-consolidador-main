@@ -67,4 +67,48 @@ describe('Parser Base BTG (Export / CRM / Plano de Negócio)', () => {
     expect(ehBaseBtgExcel(wb)).toBe(true);
     expect(ehPoliticasExcel(wb)).toBe(false);
   });
+
+  it('calcula corretamente a receita e evolução do simulador (0,75% a.a. PF e 0,30% a.a. PJ em 6 meses)', async () => {
+    const { calcularSimulacaoPlano } = await import('../src/components/views/base-clientes');
+    const { S } = await import('../src/domain/state');
+
+    S.simuladorPlano = {
+      prazoMeses: 6,
+      taxaPfAa: 0.75,
+      taxaPjAa: 0.30,
+      faixaMin: 100000,
+      faixaMax: 500000,
+      faixaPredefinida: '100k-500k',
+      excluirEstrangeiros: true,
+      assessorSel: '',
+      subAba: 'evolucao'
+    };
+
+    const itensMock: any[] = [
+      { chave: '1', conta: '1', contas: ['1'], nome: 'PF 1', tipo: 'PF', plTotal: 200000, assessor: 'Assessor A', status: 'Ativa', tipoInvestidor: 'Geral' },
+      { chave: '2', conta: '2', contas: ['2'], nome: 'PJ 1', tipo: 'PJ', plTotal: 400000, assessor: 'Assessor A', status: 'Ativa', tipoInvestidor: 'Geral' },
+      { chave: '3', conta: '3', contas: ['3'], nome: 'Estrangeiro', tipo: 'Estrangeiro', plTotal: 300000, assessor: 'Assessor B', status: 'Ativa', tipoInvestidor: 'Estrangeiro' },
+      { chave: '4', conta: '4', contas: ['4'], nome: 'PF Fora', tipo: 'PF', plTotal: 600000, assessor: 'Assessor B', status: 'Ativa', tipoInvestidor: 'Geral' },
+    ];
+
+    const res = calcularSimulacaoPlano(itensMock);
+
+    expect(res.totalContas).toBe(2); // PF 1 e PJ 1 (estrangeiro excluído, PF Fora > 500k)
+    expect(res.pfContas).toBe(1);
+    expect(res.pjContas).toBe(1);
+    expect(res.totalPl).toBe(600000);
+
+    // Taxa PF = 0.75% / 12 = 0.000625. Receita PF = 200.000 * 0.000625 = 125
+    expect(res.receitaPfMensalPlena).toBeCloseTo(125, 2);
+    // Taxa PJ = 0.30% / 12 = 0.00025. Receita PJ = 400.000 * 0.00025 = 100
+    expect(res.receitaPjMensalPlena).toBeCloseTo(100, 2);
+    // Total mensal pleno = 225
+    expect(res.receitaMensalPlena).toBeCloseTo(225, 2);
+    // Anual = 225 * 12 = 2700
+    expect(res.receitaAnualPlena).toBeCloseTo(2700, 2);
+
+    // 6 meses de evolução
+    expect(res.evolucaoMeses.length).toBe(6);
+    expect(res.evolucaoMeses[5].receitaTotal).toBeCloseTo(225, 2);
+  });
 });

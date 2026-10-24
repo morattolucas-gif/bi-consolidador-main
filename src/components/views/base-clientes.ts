@@ -96,6 +96,196 @@ function faixaDePL(pl: number, faixas: FaixaPLConfig[]): FaixaPLConfig | undefin
   return faixas.find(f => pl >= f.min && pl < f.max);
 }
 
+export const FAIXAS_PREDEFINIDAS_SIM: Record<string, { rotulo: string; min: number; max: number }> = {
+  '100k-500k': { rotulo: '🎯 100k a 500 mil (Foco Principal)', min: 100000, max: 500000 },
+  'ate-100k': { rotulo: 'Até 100 mil', min: 0.01, max: 100000 },
+  '500k-1mi': { rotulo: '500 mil a 1 milhão', min: 500000, max: 1000000 },
+  '1mi-5mi': { rotulo: '1 milhão a 5 milhões', min: 1000000, max: 5000000 },
+  'acima-5mi': { rotulo: 'Acima de 5 milhões', min: 5000000, max: Infinity },
+  'todas-saldo': { rotulo: 'Todas com Saldo (> 0)', min: 0.01, max: Infinity },
+};
+
+export interface ResultadoSimulacaoPlano {
+  totalContas: number;
+  pfContas: number;
+  pjContas: number;
+  totalPl: number;
+  pfPl: number;
+  pjPl: number;
+  ticketMedio: number;
+  taxaPfAa: number;
+  taxaPjAa: number;
+  taxaPfAm: number;
+  taxaPjAm: number;
+  prazoMeses: number;
+  receitaPfMensalPlena: number;
+  receitaPjMensalPlena: number;
+  receitaMensalPlena: number;
+  receitaAnualPlena: number;
+  faturamentoAcumuladoPeriodo: number;
+  metaMensalContasTotal: number;
+  evolucaoMeses: Array<{
+    mes: number;
+    pctProgresso: number;
+    contasNoMes: number;
+    aumPf: number;
+    aumPj: number;
+    aumTotal: number;
+    receitaPf: number;
+    receitaPj: number;
+    receitaTotal: number;
+    runRateAnual: number;
+  }>;
+  porAssessor: Array<{
+    assessor: string;
+    pfContas: number;
+    pjContas: number;
+    totalContas: number;
+    pfPl: number;
+    pjPl: number;
+    totalPl: number;
+    metaMensalContas: number;
+    receitaPfMensal: number;
+    receitaPjMensal: number;
+    receitaTotalMensal: number;
+    receitaAnual: number;
+    shareReceita: number;
+  }>;
+  contasElegiveis: ItemUnidade[];
+}
+
+export function calcularSimulacaoPlano(itensTodos: ItemUnidade[]): ResultadoSimulacaoPlano {
+  const sim = S.simuladorPlano;
+  const taxaPfAm = (sim.taxaPfAa / 100) / 12;
+  const taxaPjAm = (sim.taxaPjAa / 100) / 12;
+  const prazo = Math.max(1, Math.round(sim.prazoMeses || 6));
+
+  const elegiveis = itensTodos.filter(c => {
+    if (c.plTotal <= 0) return false;
+    if (c.plTotal < sim.faixaMin || c.plTotal > sim.faixaMax) return false;
+    if (sim.excluirEstrangeiros && (c.tipo === 'Estrangeiro' || norm(c.tipoInvestidor || '').includes('estrangeiro'))) {
+      return false;
+    }
+    if (sim.assessorSel && c.assessor !== sim.assessorSel) return false;
+    return true;
+  });
+
+  const pfItens = elegiveis.filter(c => c.tipo === 'PF');
+  const pjItens = elegiveis.filter(c => c.tipo === 'PJ');
+
+  const pfContas = pfItens.length;
+  const pjContas = pjItens.length;
+  const totalContas = elegiveis.length;
+
+  const pfPl = pfItens.reduce((s, c) => s + c.plTotal, 0);
+  const pjPl = pjItens.reduce((s, c) => s + c.plTotal, 0);
+  const totalPl = pfPl + pjPl;
+  const ticketMedio = totalContas > 0 ? totalPl / totalContas : 0;
+
+  const receitaPfMensalPlena = pfPl * taxaPfAm;
+  const receitaPjMensalPlena = pjPl * taxaPjAm;
+  const receitaMensalPlena = receitaPfMensalPlena + receitaPjMensalPlena;
+  const receitaAnualPlena = receitaMensalPlena * 12;
+
+  const metaMensalContasTotal = Math.ceil(totalContas / prazo);
+
+  const evolucaoMeses = [];
+  let faturamentoAcumuladoPeriodo = 0;
+  for (let m = 1; m <= prazo; m++) {
+    const pctProgresso = m / prazo;
+    const contasNoMes = Math.round(totalContas * pctProgresso);
+    const aumPf = pfPl * pctProgresso;
+    const aumPj = pjPl * pctProgresso;
+    const aumTotal = totalPl * pctProgresso;
+    const receitaPf = aumPf * taxaPfAm;
+    const receitaPj = aumPj * taxaPjAm;
+    const receitaTotal = receitaPf + receitaPj;
+    const runRateAnual = receitaTotal * 12;
+    faturamentoAcumuladoPeriodo += receitaTotal;
+
+    evolucaoMeses.push({
+      mes: m,
+      pctProgresso,
+      contasNoMes,
+      aumPf,
+      aumPj,
+      aumTotal,
+      receitaPf,
+      receitaPj,
+      receitaTotal,
+      runRateAnual
+    });
+  }
+
+  const mapaAssessor = new Map<string, { pfContas: number; pjContas: number; pfPl: number; pjPl: number; totalContas: number; totalPl: number }>();
+  for (const c of elegiveis) {
+    const ass = c.assessor || 'Sem Assessor';
+    let reg = mapaAssessor.get(ass);
+    if (!reg) {
+      reg = { pfContas: 0, pjContas: 0, pfPl: 0, pjPl: 0, totalContas: 0, totalPl: 0 };
+      mapaAssessor.set(ass, reg);
+    }
+    reg.totalContas++;
+    reg.totalPl += c.plTotal;
+    if (c.tipo === 'PF') {
+      reg.pfContas++;
+      reg.pfPl += c.plTotal;
+    } else if (c.tipo === 'PJ') {
+      reg.pjContas++;
+      reg.pjPl += c.plTotal;
+    }
+  }
+
+  const porAssessor = [...mapaAssessor.entries()].map(([assessor, d]) => {
+    const receitaPfMensal = d.pfPl * taxaPfAm;
+    const receitaPjMensal = d.pjPl * taxaPjAm;
+    const receitaTotalMensal = receitaPfMensal + receitaPjMensal;
+    const receitaAnual = receitaTotalMensal * 12;
+    const shareReceita = receitaMensalPlena > 0 ? receitaTotalMensal / receitaMensalPlena : 0;
+    const metaMensalContas = Math.ceil(d.totalContas / prazo);
+
+    return {
+      assessor,
+      pfContas: d.pfContas,
+      pjContas: d.pjContas,
+      totalContas: d.totalContas,
+      pfPl: d.pfPl,
+      pjPl: d.pjPl,
+      totalPl: d.totalPl,
+      metaMensalContas,
+      receitaPfMensal,
+      receitaPjMensal,
+      receitaTotalMensal,
+      receitaAnual,
+      shareReceita
+    };
+  }).sort((a, b) => b.totalPl - a.totalPl);
+
+  return {
+    totalContas,
+    pfContas,
+    pjContas,
+    totalPl,
+    pfPl,
+    pjPl,
+    ticketMedio,
+    taxaPfAa: sim.taxaPfAa,
+    taxaPjAa: sim.taxaPjAa,
+    taxaPfAm,
+    taxaPjAm,
+    prazoMeses: prazo,
+    receitaPfMensalPlena,
+    receitaPjMensalPlena,
+    receitaMensalPlena,
+    receitaAnualPlena,
+    faturamentoAcumuladoPeriodo,
+    metaMensalContasTotal,
+    evolucaoMeses,
+    porAssessor,
+    contasElegiveis: elegiveis
+  };
+}
+
 export function renderBaseClientes() {
   const box = $('#aba-base');
   if (!box) return;
@@ -184,6 +374,9 @@ export function renderBaseClientes() {
 
   // Ordena selecionadas por PL desc
   selecionadas.sort((a, b) => b.plTotal - a.plTotal);
+
+  // Cálculo da Projeção do Plano de Negócios (Carteira Administrada)
+  const simRes = calcularSimulacaoPlano(itensTodos);
 
   box.innerHTML = `
     <!-- Topo de Ações e Título -->
@@ -277,6 +470,9 @@ export function renderBaseClientes() {
         ` : ''}
       </div>
     </div>
+
+    <!-- SEÇÃO SIMULADOR DE PLANO DE NEGÓCIOS -->
+    ${renderSecaoSimulador(simRes, assessores)}
 
     <!-- Tabela Matriz por Faixa e Tipo -->
     <div class="cartao cartao-destaque" style="margin-bottom:16px;">
@@ -452,10 +648,10 @@ export function renderBaseClientes() {
   `;
 
   // Listeners de eventos
-  vincularEventosBase(itensTodos);
+  vincularEventosBase(itensTodos, simRes);
 }
 
-function vincularEventosBase(itensTodos: ItemUnidade[]) {
+function vincularEventosBase(itensTodos: ItemUnidade[], simRes: ResultadoSimulacaoPlano) {
   // Segmented Modo
   $('#seg-modo-base')?.addEventListener('click', e => {
     const b = (e.target as HTMLElement).closest('button');
@@ -541,6 +737,468 @@ function vincularEventosBase(itensTodos: ItemUnidade[]) {
 
   // Editar faixas
   $('#btn-editar-faixas')?.addEventListener('click', () => abrirModalFaixas());
+
+  // Eventos do Simulador de Plano de Negócios
+  vincularEventosSimulador(itensTodos, simRes);
+}
+
+function renderSecaoSimulador(res: ResultadoSimulacaoPlano, assessores: string[]): string {
+  const sim = S.simuladorPlano;
+
+  return `
+    <div class="cartao" id="secao-simulador" style="border: 2px solid var(--s1); background: linear-gradient(180deg, rgba(42,120,214,0.04) 0%, var(--surface) 100%); margin-bottom: 20px; border-radius: 12px; padding: 18px 20px; box-shadow: 0 4px 18px rgba(4,20,45,0.06);">
+      
+      <!-- Topo do Simulador -->
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:14px;border-bottom:1px solid var(--grid);padding-bottom:12px;">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span style="font-size:24px;">🚀</span>
+          <div>
+            <h2 style="font-size:16px;margin:0 0 2px;font-weight:750;color:var(--ink);">Simulador de Plano de Negócios — Carteira Administrada</h2>
+            <p class="sec" style="margin:0;font-size:12.5px;">
+              Projeção fiduciária de conversão para Fee Fixo: <b>${sim.taxaPfAa}% a.a. (PF)</b> e <b>${sim.taxaPjAa}% a.a. (PJ)</b> ao longo de <b>${res.prazoMeses} meses</b>.
+            </p>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <button type="button" class="btn btn-pri" id="btn-exportar-simulacao" style="background:var(--s1);border-color:var(--s1);box-shadow:0 2px 8px rgba(42,120,214,0.25);">
+            📥 Baixar Projeção (Excel)
+          </button>
+        </div>
+      </div>
+
+      <!-- Barra de Parâmetros Interativos -->
+      <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));gap:14px;background:var(--surface);padding:14px 16px;border-radius:10px;border:1px solid var(--grid);margin-bottom:16px;">
+        
+        <!-- Prazo em Meses -->
+        <div>
+          <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;color:var(--ink-2);">
+            ⏱️ Prazo de Conversão
+          </label>
+          <div style="display:flex;gap:4px;" id="sim-prazos-botoes">
+            <button type="button" class="btn btn-sm btn-sim-prazo" data-p="3" style="${sim.prazoMeses === 3 ? 'background:var(--s1);color:#fff;font-weight:700;' : ''}">3m</button>
+            <button type="button" class="btn btn-sm btn-sim-prazo" data-p="6" style="${sim.prazoMeses === 6 ? 'background:var(--s1);color:#fff;font-weight:700;' : ''}">6m</button>
+            <button type="button" class="btn btn-sm btn-sim-prazo" data-p="12" style="${sim.prazoMeses === 12 ? 'background:var(--s1);color:#fff;font-weight:700;' : ''}">12m</button>
+            <input type="number" id="sim-inp-prazo" value="${sim.prazoMeses}" min="1" max="36" style="width:52px;padding:3px 6px;border-radius:4px;border:1px solid var(--border);text-align:center;font-size:12px;" title="Número de meses">
+          </div>
+        </div>
+
+        <!-- Taxa PF (% a.a.) -->
+        <div>
+          <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;color:var(--ink-2);">
+            👤 Fee PF (% a.a.)
+            <span class="muted" style="font-weight:400;">(${(res.taxaPfAm * 100).toFixed(4)}% a.m.)</span>
+          </label>
+          <div style="display:flex;align-items:center;gap:6px;">
+            <input type="number" id="sim-taxa-pf" value="${sim.taxaPfAa}" step="0.05" min="0" max="15" style="width:75px;padding:4px 6px;border-radius:6px;border:1px solid var(--border);font-weight:700;font-size:13px;">
+            <span style="font-size:12px;color:var(--ink-2);">% a.a.</span>
+          </div>
+        </div>
+
+        <!-- Taxa PJ (% a.a.) -->
+        <div>
+          <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;color:var(--ink-2);">
+            🏢 Fee PJ (% a.a.)
+            <span class="muted" style="font-weight:400;">(${(res.taxaPjAm * 100).toFixed(4)}% a.m.)</span>
+          </label>
+          <div style="display:flex;align-items:center;gap:6px;">
+            <input type="number" id="sim-taxa-pj" value="${sim.taxaPjAa}" step="0.05" min="0" max="15" style="width:75px;padding:4px 6px;border-radius:6px;border:1px solid var(--border);font-weight:700;font-size:13px;">
+            <span style="font-size:12px;color:var(--ink-2);">% a.a.</span>
+          </div>
+        </div>
+
+        <!-- Faixa de PL Alvo -->
+        <div>
+          <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;color:var(--ink-2);">
+            🎯 Faixa de PL Alvo
+          </label>
+          <select id="sim-sel-faixa" style="width:100%;padding:5px 8px;border-radius:6px;border:1px solid var(--border);font-size:12px;">
+            <option value="100k-500k" ${sim.faixaPredefinida === '100k-500k' ? 'selected' : ''}>🎯 100k a 500 mil (Foco Principal)</option>
+            <option value="ate-100k" ${sim.faixaPredefinida === 'ate-100k' ? 'selected' : ''}>Até 100 mil</option>
+            <option value="500k-1mi" ${sim.faixaPredefinida === '500k-1mi' ? 'selected' : ''}>500 mil a 1 milhão</option>
+            <option value="1mi-5mi" ${sim.faixaPredefinida === '1mi-5mi' ? 'selected' : ''}>1 milhão a 5 milhões</option>
+            <option value="acima-5mi" ${sim.faixaPredefinida === 'acima-5mi' ? 'selected' : ''}>Acima de 5 milhões</option>
+            <option value="todas-saldo" ${sim.faixaPredefinida === 'todas-saldo' ? 'selected' : ''}>Todas com Saldo (> 0)</option>
+          </select>
+        </div>
+
+        <!-- Opções Adicionais (Estrangeiros e Assessor) -->
+        <div style="display:flex;flex-direction:column;justify-content:center;gap:6px;">
+          <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;">
+            <input type="checkbox" id="sim-chk-estrangeiros" ${sim.excluirEstrangeiros ? 'checked' : ''}>
+            <span><b>Excluir Estrangeiros</b> (só PF + PJ)</span>
+          </label>
+          <div style="display:flex;align-items:center;gap:6px;">
+            <span style="font-size:11px;color:var(--muted);">Assessor:</span>
+            <select id="sim-sel-assessor" style="flex:1;padding:3px 6px;border-radius:4px;border:1px solid var(--border);font-size:11.5px;">
+              <option value="">Todos os Assessores (${assessores.length})</option>
+              ${assessores.map(a => `<option value="${esc(a)}" ${sim.assessorSel === a ? 'selected' : ''}>${esc(a)}</option>`).join('')}
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- KPIs da Simulação -->
+      <div class="kpis" style="margin-bottom:16px;">
+        <div class="kpi" style="border-left:3px solid var(--s1);background:var(--surface);">
+          <span class="kpi-rot" style="color:var(--s1);font-weight:700;">AuM Sob Gestão Alvo</span>
+          <b class="kpi-val" style="color:var(--s1);">${brlCurto(res.totalPl)}</b>
+          <span class="kpi-sub"><b>${inteiro(res.totalContas)} contas</b> (${inteiro(res.pfContas)} PF · ${inteiro(res.pjContas)} PJ)</span>
+        </div>
+
+        <div class="kpi" style="border-left:3px solid #0ca30c;background:var(--surface);">
+          <span class="kpi-rot" style="color:#0ca30c;font-weight:700;">Receita Recorrente no Mês ${res.prazoMeses}</span>
+          <b class="kpi-val" style="color:#0ca30c;">${brl(res.receitaMensalPlena)}</b>
+          <span class="kpi-sub">PF: <b>${brl(res.receitaPfMensalPlena)}</b> · PJ: <b>${brl(res.receitaPjMensalPlena)}</b></span>
+        </div>
+
+        <div class="kpi" style="background:var(--surface);">
+          <span class="kpi-rot">Run-Rate Anualizado (100%)</span>
+          <b class="kpi-val">${brl(res.receitaAnualPlena)}</b>
+          <span class="kpi-sub">Faturamento anual da base plena</span>
+        </div>
+
+        <div class="kpi" style="background:var(--surface);">
+          <span class="kpi-rot">Faturamento Acumulado (${res.prazoMeses}m)</span>
+          <b class="kpi-val">${brl(res.faturamentoAcumuladoPeriodo)}</b>
+          <span class="kpi-sub">Receita total na transição</span>
+        </div>
+
+        <div class="kpi" style="background:var(--surface);">
+          <span class="kpi-rot">Meta Mensal da Equipe</span>
+          <b class="kpi-val">~${inteiro(res.metaMensalContasTotal)} contas/mês</b>
+          <span class="kpi-sub">${brlCurto(res.totalPl / res.prazoMeses)} de AuM convertido/mês</span>
+        </div>
+      </div>
+
+      <!-- Sub-navegação do Simulador -->
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:12px;">
+        <span class="seg" id="seg-sub-sim">
+          <button type="button" class="btn-sub-sim" data-sub="evolucao" aria-pressed="${sim.subAba === 'evolucao'}">📈 Curva de Evolução Mês a Mês</button>
+          <button type="button" class="btn-sub-sim" data-sub="assessores" aria-pressed="${sim.subAba === 'assessores'}">👥 Metas e Receita por Assessor (${res.porAssessor.length})</button>
+          <button type="button" class="btn-sub-sim" data-sub="contas" aria-pressed="${sim.subAba === 'contas'}">📋 Contas Alvo da Faixa (${inteiro(res.totalContas)})</button>
+        </span>
+      </div>
+
+      <!-- Conteúdo da Sub-Aba Selecionada -->
+      ${sim.subAba === 'evolucao' ? `
+        <!-- Tabela Mês a Mês -->
+        <div style="overflow-x:auto;border:1px solid var(--grid);border-radius:8px;background:var(--surface);">
+          <table style="width:100%;border-collapse:collapse;font-size:12.5px;">
+            <thead>
+              <tr style="background:var(--surface-2);border-bottom:2px solid var(--grid);">
+                <th style="text-align:center;padding:8px 10px;width:70px;">Mês</th>
+                <th style="text-align:left;padding:8px 10px;width:130px;">Progresso</th>
+                <th style="text-align:right;padding:8px 10px;">Contas Geridas</th>
+                <th style="text-align:right;padding:8px 10px;background:rgba(42,120,214,0.04);">AuM PF (R$)</th>
+                <th style="text-align:right;padding:8px 10px;background:rgba(142,68,173,0.04);">AuM PJ (R$)</th>
+                <th style="text-align:right;padding:8px 10px;font-weight:700;">AuM Total Gerido</th>
+                <th style="text-align:right;padding:8px 10px;background:rgba(42,120,214,0.04);">Receita PF / Mês</th>
+                <th style="text-align:right;padding:8px 10px;background:rgba(142,68,173,0.04);">Receita PJ / Mês</th>
+                <th style="text-align:right;padding:8px 10px;font-weight:700;color:#0ca30c;background:rgba(12,163,12,0.04);">Receita Total / Mês</th>
+                <th style="text-align:right;padding:8px 10px;font-weight:700;">Run-Rate Anual</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${res.evolucaoMeses.map(ev => `
+                <tr style="border-bottom:1px solid var(--grid);${ev.mes === res.prazoMeses ? 'background:rgba(12,163,12,0.06);font-weight:600;' : ''}">
+                  <td style="text-align:center;padding:7px 10px;font-weight:700;">Mês ${ev.mes}</td>
+                  <td style="padding:7px 10px;">
+                    <div style="display:flex;align-items:center;gap:6px;">
+                      <div style="flex:1;background:var(--grid);height:6px;border-radius:3px;overflow:hidden;">
+                        <div style="width:${(ev.pctProgresso * 100).toFixed(0)}%;background:var(--s1);height:100%;"></div>
+                      </div>
+                      <span style="font-size:11px;min-width:32px;text-align:right;">${pct(ev.pctProgresso, 0)}</span>
+                    </div>
+                  </td>
+                  <td style="text-align:right;padding:7px 10px;" class="num">${inteiro(ev.contasNoMes)}</td>
+                  <td style="text-align:right;padding:7px 10px;background:rgba(42,120,214,0.02);" class="num">${brlCurto(ev.aumPf)}</td>
+                  <td style="text-align:right;padding:7px 10px;background:rgba(142,68,173,0.02);" class="num">${brlCurto(ev.aumPj)}</td>
+                  <td style="text-align:right;padding:7px 10px;font-weight:700;" class="num">${brlCurto(ev.aumTotal)}</td>
+                  <td style="text-align:right;padding:7px 10px;background:rgba(42,120,214,0.02);" class="num">${brl(ev.receitaPf)}</td>
+                  <td style="text-align:right;padding:7px 10px;background:rgba(142,68,173,0.02);" class="num">${brl(ev.receitaPj)}</td>
+                  <td style="text-align:right;padding:7px 10px;font-weight:700;color:#0ca30c;background:rgba(12,163,12,0.03);" class="num">${brl(ev.receitaTotal)}</td>
+                  <td style="text-align:right;padding:7px 10px;font-weight:700;" class="num">${brl(ev.runRateAnual)}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+            <tfoot>
+              <tr style="border-top:2px solid var(--marca);background:var(--surface-2);font-weight:700;">
+                <td colspan="8" style="padding:8px 10px;text-align:right;">Faturamento Acumulado Durante os ${res.prazoMeses} Meses de Transição:</td>
+                <td style="text-align:right;padding:8px 10px;color:#0ca30c;font-size:13px;" class="num">${brl(res.faturamentoAcumuladoPeriodo)}</td>
+                <td style="text-align:right;padding:8px 10px;" class="num">${brl(res.receitaAnualPlena)} /ano</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      ` : sim.subAba === 'assessores' ? `
+        <!-- Tabela por Assessor -->
+        <div style="overflow-x:auto;border:1px solid var(--grid);border-radius:8px;background:var(--surface);">
+          <table style="width:100%;border-collapse:collapse;font-size:12.5px;">
+            <thead>
+              <tr style="background:var(--surface-2);border-bottom:2px solid var(--grid);">
+                <th style="text-align:left;padding:8px 10px;">Assessor</th>
+                <th style="text-align:center;padding:8px 10px;background:rgba(42,120,214,0.04);">Contas PF</th>
+                <th style="text-align:center;padding:8px 10px;background:rgba(142,68,173,0.04);">Contas PJ</th>
+                <th style="text-align:center;padding:8px 10px;font-weight:700;">Total Contas</th>
+                <th style="text-align:center;padding:8px 10px;color:var(--s1);font-weight:700;">Meta (Contas/Mês)</th>
+                <th style="text-align:right;padding:8px 10px;background:rgba(42,120,214,0.04);">AuM PF (R$)</th>
+                <th style="text-align:right;padding:8px 10px;background:rgba(142,68,173,0.04);">AuM PJ (R$)</th>
+                <th style="text-align:right;padding:8px 10px;font-weight:700;">AuM Total Alvo</th>
+                <th style="text-align:right;padding:8px 10px;color:#0ca30c;font-weight:700;">Receita Mensal (Mês ${res.prazoMeses})</th>
+                <th style="text-align:right;padding:8px 10px;font-weight:700;">Receita Anual Projetada</th>
+                <th style="text-align:right;padding:8px 10px;">Share Receita</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${res.porAssessor.map(a => `
+                <tr style="border-bottom:1px solid var(--grid);">
+                  <td style="padding:7px 10px;font-weight:600;">${esc(a.assessor)}</td>
+                  <td style="text-align:center;padding:7px 10px;background:rgba(42,120,214,0.02);">${inteiro(a.pfContas)}</td>
+                  <td style="text-align:center;padding:7px 10px;background:rgba(142,68,173,0.02);color:#6c3483;font-weight:600;">${inteiro(a.pjContas)}</td>
+                  <td style="text-align:center;padding:7px 10px;font-weight:700;">${inteiro(a.totalContas)}</td>
+                  <td style="text-align:center;padding:7px 10px;color:var(--s1);font-weight:700;background:rgba(42,120,214,0.04);">
+                    ~${a.metaMensalContas}/mês
+                  </td>
+                  <td style="text-align:right;padding:7px 10px;background:rgba(42,120,214,0.02);" class="num">${brlCurto(a.pfPl)}</td>
+                  <td style="text-align:right;padding:7px 10px;background:rgba(142,68,173,0.02);" class="num">${brlCurto(a.pjPl)}</td>
+                  <td style="text-align:right;padding:7px 10px;font-weight:700;" class="num">${brl(a.totalPl)}</td>
+                  <td style="text-align:right;padding:7px 10px;font-weight:700;color:#0ca30c;background:rgba(12,163,12,0.03);" class="num">${brl(a.receitaTotalMensal)}</td>
+                  <td style="text-align:right;padding:7px 10px;font-weight:700;" class="num">${brl(a.receitaAnual)}</td>
+                  <td style="text-align:right;padding:7px 10px;" class="num">${pct(a.shareReceita, 1)}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+            <tfoot>
+              <tr style="border-top:2px solid var(--marca);background:var(--surface-2);font-weight:700;">
+                <td style="padding:8px 10px;">TOTAL GERAL</td>
+                <td style="text-align:center;padding:8px 10px;">${inteiro(res.pfContas)}</td>
+                <td style="text-align:center;padding:8px 10px;color:#6c3483;">${inteiro(res.pjContas)}</td>
+                <td style="text-align:center;padding:8px 10px;">${inteiro(res.totalContas)}</td>
+                <td style="text-align:center;padding:8px 10px;color:var(--s1);">~${res.metaMensalContasTotal}/mês</td>
+                <td style="text-align:right;padding:8px 10px;" class="num">${brlCurto(res.pfPl)}</td>
+                <td style="text-align:right;padding:8px 10px;" class="num">${brlCurto(res.pjPl)}</td>
+                <td style="text-align:right;padding:8px 10px;" class="num">${brl(res.totalPl)}</td>
+                <td style="text-align:right;padding:8px 10px;color:#0ca30c;" class="num">${brl(res.receitaMensalPlena)}</td>
+                <td style="text-align:right;padding:8px 10px;" class="num">${brl(res.receitaAnualPlena)}</td>
+                <td style="text-align:right;padding:8px 10px;" class="num">100,0%</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      ` : `
+        <!-- Lista das Contas Elegíveis -->
+        <div style="max-height:360px;overflow:auto;border:1px solid var(--grid);border-radius:8px;background:var(--surface);">
+          <table style="width:100%;border-collapse:collapse;font-size:12px;">
+            <thead style="position:sticky;top:0;background:var(--surface-2);border-bottom:1px solid var(--grid);z-index:2;">
+              <tr>
+                <th style="text-align:left;padding:6px 10px;">Conta</th>
+                <th style="text-align:left;padding:6px 10px;">Titular</th>
+                <th style="text-align:center;padding:6px 8px;">Tipo</th>
+                <th style="text-align:left;padding:6px 10px;">Assessor</th>
+                <th style="text-align:center;padding:6px 8px;">Status</th>
+                <th style="text-align:left;padding:6px 8px;">Cidade/UF</th>
+                <th style="text-align:right;padding:6px 10px;">PL Total</th>
+                <th style="text-align:right;padding:6px 10px;color:#0ca30c;">Receita Mensal Estimada</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${res.contasElegiveis.map(c => {
+                const taxa = c.tipo === 'PJ' ? res.taxaPjAm : res.taxaPfAm;
+                const recEst = c.plTotal * taxa;
+                return `
+                  <tr style="border-bottom:1px solid var(--grid);">
+                    <td style="padding:5px 10px;font-family:monospace;font-weight:600;">${esc(c.conta)}</td>
+                    <td style="padding:5px 10px;font-weight:600;">${esc(c.nome)}</td>
+                    <td style="padding:5px 8px;text-align:center;">
+                      <span style="display:inline-block;padding:1px 6px;border-radius:4px;font-size:10.5px;font-weight:700;${
+                        c.tipo === 'PJ' ? 'background:rgba(142,68,173,0.15);color:#6c3483;' : 'background:rgba(42,120,214,0.15);color:#1c5cab;'
+                      }">${esc(c.tipo)}</span>
+                    </td>
+                    <td style="padding:5px 10px;color:var(--ink-2);">${esc(c.assessor || '–')}</td>
+                    <td style="padding:5px 8px;text-align:center;">
+                      <span style="display:inline-block;padding:1px 6px;border-radius:4px;font-size:10.5px;font-weight:600;${
+                        norm(c.status) === 'ativa' ? 'background:rgba(46,204,113,0.15);color:#1e8449;' : 'background:rgba(127,140,141,0.15);color:#5d6d7e;'
+                      }">${esc(c.status || '–')}</span>
+                    </td>
+                    <td style="padding:5px 8px;color:var(--muted);">${esc(c.cidade ? `${c.cidade}/${c.estado || ''}` : '–')}</td>
+                    <td style="padding:5px 10px;text-align:right;font-weight:700;" class="num">${brl(c.plTotal)}</td>
+                    <td style="padding:5px 10px;text-align:right;font-weight:700;color:#0ca30c;" class="num">${brl(recEst)}</td>
+                  </tr>
+                `;
+              }).join('')}
+            </tbody>
+          </table>
+        </div>
+      `}
+    </div>
+  `;
+}
+
+function vincularEventosSimulador(itensTodos: ItemUnidade[], res: ResultadoSimulacaoPlano) {
+  // Prazos botões rápidos
+  document.querySelectorAll('.btn-sim-prazo').forEach(b => {
+    b.addEventListener('click', e => {
+      e.stopPropagation();
+      const p = Number((b as HTMLElement).dataset.p) || 6;
+      S.simuladorPlano.prazoMeses = p;
+      renderBaseClientes();
+    });
+  });
+
+  // Prazo input livre
+  $('#sim-inp-prazo')?.addEventListener('change', e => {
+    const v = Number((e.target as HTMLInputElement).value) || 6;
+    S.simuladorPlano.prazoMeses = Math.max(1, Math.min(36, v));
+    renderBaseClientes();
+  });
+
+  // Taxa PF
+  $('#sim-taxa-pf')?.addEventListener('change', e => {
+    const v = Number((e.target as HTMLInputElement).value);
+    if (!isNaN(v) && v >= 0) {
+      S.simuladorPlano.taxaPfAa = v;
+      renderBaseClientes();
+    }
+  });
+
+  // Taxa PJ
+  $('#sim-taxa-pj')?.addEventListener('change', e => {
+    const v = Number((e.target as HTMLInputElement).value);
+    if (!isNaN(v) && v >= 0) {
+      S.simuladorPlano.taxaPjAa = v;
+      renderBaseClientes();
+    }
+  });
+
+  // Faixa select
+  $('#sim-sel-faixa')?.addEventListener('change', e => {
+    const val = (e.target as HTMLSelectElement).value;
+    const fx = FAIXAS_PREDEFINIDAS_SIM[val];
+    if (fx) {
+      S.simuladorPlano.faixaMin = fx.min;
+      S.simuladorPlano.faixaMax = fx.max;
+      S.simuladorPlano.faixaPredefinida = val;
+      renderBaseClientes();
+    }
+  });
+
+  // Estrangeiros checkbox
+  $('#sim-chk-estrangeiros')?.addEventListener('change', e => {
+    S.simuladorPlano.excluirEstrangeiros = (e.target as HTMLInputElement).checked;
+    renderBaseClientes();
+  });
+
+  // Assessor select
+  $('#sim-sel-assessor')?.addEventListener('change', e => {
+    S.simuladorPlano.assessorSel = (e.target as HTMLSelectElement).value;
+    renderBaseClientes();
+  });
+
+  // Sub-abas
+  document.querySelectorAll('.btn-sub-sim').forEach(b => {
+    b.addEventListener('click', e => {
+      e.stopPropagation();
+      const sub = (b as HTMLElement).dataset.sub as any;
+      if (sub) {
+        S.simuladorPlano.subAba = sub;
+        renderBaseClientes();
+      }
+    });
+  });
+
+  // Exportar Excel do Simulador
+  $('#btn-exportar-simulacao')?.addEventListener('click', () => {
+    exportarSimulacaoExcel(res);
+  });
+}
+
+export function exportarSimulacaoExcel(res: ResultadoSimulacaoPlano) {
+  const wb = XLSX.utils.book_new();
+
+  // 1. Resumo do Plano
+  const resumo = [
+    { Indicador: 'Faixa de Patrimônio Líquido', Valor: S.simuladorPlano.faixaPredefinida === '100k-500k' ? '100k a 500 mil (Foco)' : `R$ ${S.simuladorPlano.faixaMin.toLocaleString('pt-BR')} a R$ ${S.simuladorPlano.faixaMax.toLocaleString('pt-BR')}` },
+    { Indicador: 'Prazo de Conversão', Valor: `${res.prazoMeses} meses` },
+    { Indicador: 'Taxa Fee PF (% a.a.)', Valor: `${res.taxaPfAa}% a.a. (= ${(res.taxaPfAm * 100).toFixed(4)}% a.m.)` },
+    { Indicador: 'Taxa Fee PJ (% a.a.)', Valor: `${res.taxaPjAa}% a.a. (= ${(res.taxaPjAm * 100).toFixed(4)}% a.m.)` },
+    { Indicador: 'Excluir Estrangeiros', Valor: S.simuladorPlano.excluirEstrangeiros ? 'Sim (apenas PF e PJ nacionais)' : 'Não' },
+    { Indicador: 'Filtro por Assessor', Valor: S.simuladorPlano.assessorSel || 'Todos os Assessores' },
+    { Indicador: '----------------------------------------', Valor: '----------------------------------------' },
+    { Indicador: 'Total de Contas Alvo', Valor: res.totalContas },
+    { Indicador: 'Contas PF', Valor: res.pfContas },
+    { Indicador: 'Contas PJ', Valor: res.pjContas },
+    { Indicador: 'AuM Total sob Gestão Alvo (R$)', Valor: Math.round(res.totalPl * 100) / 100 },
+    { Indicador: 'AuM PF (R$)', Valor: Math.round(res.pfPl * 100) / 100 },
+    { Indicador: 'AuM PJ (R$)', Valor: Math.round(res.pjPl * 100) / 100 },
+    { Indicador: 'Ticket Médio por Conta (R$)', Valor: Math.round(res.ticketMedio * 100) / 100 },
+    { Indicador: '----------------------------------------', Valor: '----------------------------------------' },
+    { Indicador: `Receita Mensal Recorrente Plena (Mês ${res.prazoMeses}) (R$)`, Valor: Math.round(res.receitaMensalPlena * 100) / 100 },
+    { Indicador: 'Receita Mensal PF (R$)', Valor: Math.round(res.receitaPfMensalPlena * 100) / 100 },
+    { Indicador: 'Receita Mensal PJ (R$)', Valor: Math.round(res.receitaPjMensalPlena * 100) / 100 },
+    { Indicador: 'Run-Rate Anual Recorrente (R$)', Valor: Math.round(res.receitaAnualPlena * 100) / 100 },
+    { Indicador: `Faturamento Acumulado no Período de ${res.prazoMeses} Meses (R$)`, Valor: Math.round(res.faturamentoAcumuladoPeriodo * 100) / 100 },
+    { Indicador: 'Meta de Conversão da Equipe (Contas/Mês)', Valor: `~${res.metaMensalContasTotal} contas/mês` },
+  ];
+  const wsResumo = XLSX.utils.json_to_sheet(resumo);
+  wsResumo['!cols'] = [{ wch: 45 }, { wch: 35 }];
+  XLSX.utils.book_append_sheet(wb, wsResumo, 'Resumo do Plano');
+
+  // 2. Evolução Mês a Mês
+  const rowsEvolucao = res.evolucaoMeses.map(ev => ({
+    Mês: `Mês ${ev.mes}`,
+    '% Concluído': Math.round(ev.pctProgresso * 1000) / 10 + '%',
+    'Contas sob Gestão': ev.contasNoMes,
+    'AuM PF (R$)': Math.round(ev.aumPf * 100) / 100,
+    'AuM PJ (R$)': Math.round(ev.aumPj * 100) / 100,
+    'AuM Total Gerido (R$)': Math.round(ev.aumTotal * 100) / 100,
+    'Receita Mensal PF (R$)': Math.round(ev.receitaPf * 100) / 100,
+    'Receita Mensal PJ (R$)': Math.round(ev.receitaPj * 100) / 100,
+    'Receita Mensal Total (R$)': Math.round(ev.receitaTotal * 100) / 100,
+    'Run-Rate Anual (R$)': Math.round(ev.runRateAnual * 100) / 100,
+  }));
+  const wsEvolucao = XLSX.utils.json_to_sheet(rowsEvolucao);
+  wsEvolucao['!cols'] = [12, 14, 18, 18, 18, 20, 20, 20, 22, 22].map(wch => ({ wch }));
+  XLSX.utils.book_append_sheet(wb, wsEvolucao, 'Evolução Mês a Mês');
+
+  // 3. Metas por Assessor
+  const rowsAssessor = res.porAssessor.map(a => ({
+    Assessor: a.assessor,
+    'Contas PF': a.pfContas,
+    'Contas PJ': a.pjContas,
+    'Total Contas': a.totalContas,
+    'Meta (Contas/Mês)': `~${a.metaMensalContas}/mês`,
+    'AuM PF (R$)': Math.round(a.pfPl * 100) / 100,
+    'AuM PJ (R$)': Math.round(a.pjPl * 100) / 100,
+    'AuM Total (R$)': Math.round(a.totalPl * 100) / 100,
+    [`Receita Mensal Mês ${res.prazoMeses} (R$)`]: Math.round(a.receitaTotalMensal * 100) / 100,
+    'Receita Anual Projetada (R$)': Math.round(a.receitaAnual * 100) / 100,
+    'Share Receita Escritório (%)': Math.round(a.shareReceita * 1000) / 10 + '%',
+  }));
+  const wsAssessor = XLSX.utils.json_to_sheet(rowsAssessor);
+  wsAssessor['!cols'] = [28, 12, 12, 14, 18, 18, 18, 20, 22, 22, 18].map(wch => ({ wch }));
+  XLSX.utils.book_append_sheet(wb, wsAssessor, 'Metas por Assessor');
+
+  // 4. Contas Elegíveis
+  const rowsContas = res.contasElegiveis.map(c => {
+    const taxa = c.tipo === 'PJ' ? res.taxaPjAm : res.taxaPfAm;
+    return {
+      Conta: c.conta,
+      Nome: c.nome,
+      Tipo: c.tipo,
+      'PL Total (R$)': Math.round(c.plTotal * 100) / 100,
+      Assessor: c.assessor,
+      Status: c.status,
+      'Receita Mensal Estimada (R$)': Math.round(c.plTotal * taxa * 100) / 100,
+      'Receita Anual Estimada (R$)': Math.round(c.plTotal * taxa * 12 * 100) / 100,
+      Cidade: c.cidade || '',
+      Estado: c.estado || '',
+    };
+  });
+  const wsContas = XLSX.utils.json_to_sheet(rowsContas);
+  wsContas['!cols'] = [14, 26, 10, 18, 22, 12, 22, 22, 16, 10].map(wch => ({ wch }));
+  XLSX.utils.book_append_sheet(wb, wsContas, 'Contas Alvo');
+
+  XLSX.writeFile(wb, `Plano_Negocios_Carteira_Administrada_${new Date().toISOString().slice(0, 10)}.xlsx`);
 }
 
 export function exportarApresentacaoExcel() {

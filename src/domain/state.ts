@@ -54,5 +54,16 @@ export const S: EstadoGlobal = {
     busca: '',
     faixaSel: null,
     tipoSel: null
+  },
+  simuladorPlano: {
+    prazoMeses: 6,
+    taxaPfAa: 0.75,
+    taxaPjAa: 0.30,
+    faixaMin: 100000,
+    faixaMax: 500000,
+    faixaPredefinida: '100k-500k',
+    excluirEstrangeiros: true,
+    assessorSel: '',
+    subAba: 'evolucao'
   }
 };

@@ -173,6 +173,19 @@ export interface EstadoGlobal {
     faixaSel: string | null;
     tipoSel: string | null;
   };
+  simuladorPlano: SimuladorPlanoConfig;
+}
+
+export interface SimuladorPlanoConfig {
+  prazoMeses: number;
+  taxaPfAa: number;
+  taxaPjAa: number;
+  faixaMin: number;
+  faixaMax: number;
+  faixaPredefinida: string;
+  excluirEstrangeiros: boolean;
+  assessorSel: string;
+  subAba: 'evolucao' | 'assessores' | 'contas';
 }
 
 export interface BaseBtgConta {
