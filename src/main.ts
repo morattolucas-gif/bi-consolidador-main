@@ -27,7 +27,8 @@ import {
   limparCadLocal,
   baixarModelo,
   abrirExtratos,
-  perguntarDono
+  perguntarDono,
+  abrirFundGuideModal
 } from './components/views/modals';
 import {
   lerPasta,
@@ -63,12 +64,13 @@ import { $, $$ } from './components/dom';
 import { esc, norm, clienteDaConta } from './components/formatters';
 
 import { renderBaseClientes } from './components/views/base-clientes';
-import { restaurarBaseBtg, restaurarFaixasBase } from './domain/storage';
+import { restaurarBaseBtg, restaurarFaixasBase, restaurarFundGuide } from './domain/storage';
 
 const DIMS: Record<string, string> = {
   classe: 'Classe de ativos',
   subclasse: 'Subclasse',
   estrategia: 'Estratégia de investimento',
+  riscoCredito: 'Risco de crédito',
   instituicao: 'Instituição custodiante'
 };
 
@@ -179,6 +181,7 @@ $('#btn-anexar')?.addEventListener('click', () => anexarExtrato({ modo: 'extrato
 $('#btn-pasta')?.addEventListener('click', () => lerPasta());
 $('#btn-politicas')?.addEventListener('click', () => abrirPoliticas());
 $('#btn-historico')?.addEventListener('click', () => abrirHistorico());
+$('#btn-fund-guide')?.addEventListener('click', () => abrirFundGuideModal());
 $('#btn-cadastro')?.addEventListener('click', () => editarCadastro());
 $('#btn-usuario')?.addEventListener('click', () => perguntarUsuario());
 function carregarBaseBtgArquivo() {
@@ -214,12 +217,39 @@ if (inputBaseBtg) {
   });
 }
 
+const inputFundGuide = $('#input-fund-guide') as HTMLInputElement;
+if (inputFundGuide) {
+  inputFundGuide.addEventListener('change', async () => {
+    const f = inputFundGuide.files?.[0];
+    if (!f) return;
+    const aviso = $('#aviso-carga');
+    try {
+      if (aviso) {
+        aviso.textContent = `Carregando Fund Guide (${f.name})…`;
+        aviso.hidden = false;
+      }
+      await processarArquivo(f);
+    } catch (err: any) {
+      const errEl = $('#erro');
+      if (errEl) {
+        errEl.textContent = `Erro ao ler Fund Guide: ${err.message || err}`;
+        errEl.hidden = false;
+      }
+    } finally {
+      if (aviso) aviso.hidden = true;
+      inputFundGuide.value = '';
+    }
+  });
+}
+
 $('#btn-vazio-posicao')?.addEventListener('click', e => { e.stopPropagation(); anexarExtrato({ modo: 'posicao' }); });
 $('#btn-vazio-extrato')?.addEventListener('click', e => { e.stopPropagation(); anexarExtrato({ modo: 'extrato' }); });
 $('#card-vazio-posicao')?.addEventListener('click', () => anexarExtrato({ modo: 'posicao' }));
 $('#card-vazio-extrato')?.addEventListener('click', () => anexarExtrato({ modo: 'extrato' }));
 $('#btn-vazio-base')?.addEventListener('click', e => { e.stopPropagation(); carregarBaseBtgArquivo(); });
 $('#card-vazio-base')?.addEventListener('click', () => carregarBaseBtgArquivo());
+$('#btn-vazio-fundguide')?.addEventListener('click', e => { e.stopPropagation(); abrirFundGuideModal(); });
+$('#card-vazio-fundguide')?.addEventListener('click', () => abrirFundGuideModal());
 $('#btn-vazio-pasta')?.addEventListener('click', e => { e.stopPropagation(); lerPasta(); });
 $('#btn-vazio-anexar')?.addEventListener('click', e => { e.stopPropagation(); anexarExtrato({ modo: 'extrato' }); });
 $('#drop')?.addEventListener('click', () => anexarExtrato());
@@ -583,6 +613,7 @@ async function bootstrap() {
   await restaurarPoliticas();
   await restaurarFaixasBase();
   await restaurarBaseBtg();
+  await restaurarFundGuide();
   await restaurarFontes();
   avisarPlanilhaAntiga();
 

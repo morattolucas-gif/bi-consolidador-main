@@ -3,11 +3,33 @@ import { Posicao, Unidade, Cliente, Familia } from '../types';
 import { somaPrecisa, somaLista } from './precision';
 import { chaveConta, nomeProprio, norm, palavras, descContas as fmtDescContas } from '../components/formatters';
 
-export const DIMS: Record<string, string> = { classe: 'Classe', subclasse: 'Subclasse', estrategia: 'Estratégia', instituicao: 'Instituição' };
-export const CHAVE: Record<string, (p: Posicao) => any> = { classe: p => p.classe, subclasse: p => p.subclasse, estrategia: p => p.estrategia, instituicao: p => p.instituicao, ativo: p => p.nomeAtivo };
+import { RISCO_CREDITO } from './constants';
+
+export const DIMS: Record<string, string> = {
+  classe: 'Classe',
+  subclasse: 'Subclasse',
+  estrategia: 'Estratégia',
+  riscoCredito: 'Risco de Crédito',
+  instituicao: 'Instituição'
+};
+
+export const CHAVE: Record<string, (p: Posicao) => any> = {
+  classe: p => p.classe,
+  subclasse: p => p.subclasse,
+  estrategia: p => p.estrategia,
+  riscoCredito: p => RISCO_CREDITO[p.riscoCredito || p.contraparte || ''] || p.riscoCredito || 'Outros',
+  instituicao: p => p.instituicao,
+  ativo: p => p.nomeAtivo
+};
 
 export const valor = (p: Posicao): number => (p as any)[S.campoValor] || 0;
-export const dimDe = (p: Posicao): string => (p as any)[S.dim] || 'Outros';
+export const dimDe = (p: Posicao): string => {
+  if (S.dim === 'riscoCredito') {
+    const k = p.riscoCredito || p.contraparte || '';
+    return RISCO_CREDITO[k] || k || 'Não identificado';
+  }
+  return (p as any)[S.dim] || 'Outros';
+};
 
 export const somar = (lista: Posicao[]): number => somaLista(lista, valor);
 

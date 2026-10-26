@@ -1,6 +1,6 @@
 import { carregarScript } from './script-loader';
 import { palavras } from '../components/formatters';
-import { lerBTGPdf } from './btg';
+import { lerBTGPdf, lerBTGRelatorioPerformancePdf, ehBTGRelatorioPerformance } from './btg';
 import { lerCaixaInformativo, lerCaixaSaldo } from './caixa';
 import { lerDebenturesDetalhe } from './debentures';
 import { lerNomad } from './nomad';
@@ -63,6 +63,7 @@ export function lerExtratoPdf(linhas: string[], inst?: string): ExtratoLido {
   const linhasLimpass = linhas.map(l => l.replace(/\u0000/g, 'a'));
   const topo = palavras(linhasLimpass.slice(0, 60).join(' '));
   // Reconhece pelo conteúdo (vale mesmo se a instituição escolhida no anexo estiver errada)
+  if (ehBTGRelatorioPerformance(linhasLimpass)) return lerBTGRelatorioPerformancePdf(linhasLimpass);
   if (/ extrato da conta investimento /.test(topo) && linhasLimpass.some(l => /Posi\S+o - /i.test(l))) return lerBTGPdf(linhasLimpass);
   if (/ informativo mensal /.test(topo) && / caixa /.test(topo)) return lerCaixaInformativo(linhasLimpass);
   if (linhasLimpass.some(l => /^Investimentos\s+DT\.REF\s+DT\.VENCTO/i.test(l))) return lerCaixaSaldo(linhasLimpass);

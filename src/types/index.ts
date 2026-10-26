@@ -39,6 +39,8 @@ export interface Posicao {
   iof?: number;
   grupo?: string;
   titular?: string | null;  // titular como veio no extrato (ex.: a PJ do cliente)
+  riscoCredito?: string;
+  contraparte?: string;
 }
 
 export interface FonteExtrato {
@@ -121,7 +123,7 @@ export interface EstadoGlobal {
   cadExtra: Map<string, { conta: string; cliente: string; familia?: string; descricao?: string }>;
   politicasPorConta: Map<string, PoliticaInvestimento>;
   aba: string;
-  dim: 'classe' | 'subclasse' | 'estrategia' | 'instituicao';
+  dim: 'classe' | 'subclasse' | 'estrategia' | 'instituicao' | 'riscoCredito';
   campoValor: 'bruto' | 'liquido';
   topN: number;
   raioX: string;
@@ -129,7 +131,7 @@ export interface EstadoGlobal {
   ordem: Record<string, { k: string; dir: number }>;
   mapa: {
     nivel: 'cliente' | 'familia';
-    cols: 'classe' | 'subclasse' | 'estrategia' | 'ativo';
+    cols: 'classe' | 'subclasse' | 'estrategia' | 'ativo' | 'riscoCredito';
     metrica: 'brl' | 'pctConta';
     filtro: string;
     busca: string;
@@ -206,6 +208,24 @@ export interface FaixaPLConfig {
   rotulo: string;
   min: number;
   max: number;
+}
+
+export interface FundoGuideItem {
+  fundo: string;
+  cge?: string;
+  cnpj?: string;
+  cnpjFormatado?: string;
+  categoriaBtg: string;
+  subcategoriaBtg: string;
+  cvm?: string;
+  anbima?: string;
+  benchmark?: string;
+  gestor?: string;
+  administrador?: string;
+  classe: string;
+  sub: string;
+  estrategia: string;
+  riscoCredito?: string;
 }
 
 export type ExtratoLido = any;

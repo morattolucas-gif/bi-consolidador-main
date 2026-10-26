@@ -14,8 +14,8 @@ export const CLASSES_EST: Record<string, string> = {
 
 export const RISCO_CREDITO: Record<string, string> = {
   Sob: 'Risco Soberano',
-  Banc: 'Crédito Bancário (FGC)',
-  Corp: 'Crédito Corporativo',
+  Banc: 'Crédito Bancário',
+  Corp: 'Crédito Privado Corporativo',
   Estr: 'Crédito Estruturado',
   ReaisTijolo: 'Ativos Reais — Tijolo',
   ReaisSoc: 'Ativos Reais — Participações Societárias',
@@ -104,6 +104,7 @@ export const CHAVE_VERSAO = 'bi-base-clientes:versao-vista';
 export const CHAVE_POLITICAS = 'bi-base-clientes:politicas-investimento';
 export const CHAVE_BASE_BTG = 'bi-base-clientes:base-btg';
 export const CHAVE_FAIXAS_BASE = 'bi-base-clientes:faixas-base';
+export const CHAVE_FUND_GUIDE = 'bi-base-clientes:fund-guide';
 
 export const FAIXAS_PADRAO_BASE = [
   { rotulo: 'Sem patrimônio', min: -Infinity, max: 0.01 },
@@ -115,6 +116,9 @@ export const FAIXAS_PADRAO_BASE = [
 ];
 
 export const VERSOES_BI = [
+  { versao: '2026.10.26', data: '2026-10-26', autor: 'Lucas + IA', mudancas: [
+    'Integração oficial da Base Fund Guide BTG (1.029 fundos mapeados por estratégia): classificação fidedigna por CNPJ e Nome, identificação automática de estratégias oficiais (Pós-fixado, Inflação, Retorno Absoluto MM, Renda Variável, Internacional, Alternativo) e suporte a upload dinâmico de planilhas FundGuide_*.xlsx.',
+  ] },
   { versao: '2026.10.23', data: '2026-10-23', autor: 'Lucas + IA', mudancas: [
     'Nova visão Base de Clientes (CRM / Plano de Negócio): leitura da Base BTG com segmentação por faixas de PL editáveis, PF vs PJ e exportação em Excel.',
   ] },

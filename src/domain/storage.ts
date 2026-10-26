@@ -1,5 +1,5 @@
 import { S } from './state';
-import { CHAVE_FONTES, CHAVE_HIST, CHAVE_POLITICAS, CHAVE_PASTA, CHAVE_USUARIO, CHAVE_BASE_BTG, CHAVE_FAIXAS_BASE } from './constants';
+import { CHAVE_FONTES, CHAVE_HIST, CHAVE_POLITICAS, CHAVE_PASTA, CHAVE_USUARIO, CHAVE_BASE_BTG, CHAVE_FAIXAS_BASE, CHAVE_FUND_GUIDE } from './constants';
 import { FonteExtrato, PoliticaInvestimento } from '../types';
 
 const memoriaLocal = new Map<string, any>();
@@ -172,4 +172,20 @@ export async function restaurarFaixasBase() {
   if (Array.isArray(dados) && dados.length) {
     S.faixasBase = dados;
   }
+}
+
+export async function salvarFundGuide(itens: any[]) {
+  memoriaLocal.set(CHAVE_FUND_GUIDE, itens);
+  await gravarIDB(CHAVE_FUND_GUIDE, itens);
+}
+
+export async function restaurarFundGuide(): Promise<boolean> {
+  let dados = await lerIDB(CHAVE_FUND_GUIDE, null);
+  if (!dados) dados = lerLocal(CHAVE_FUND_GUIDE, null);
+  if (Array.isArray(dados) && dados.length > 0) {
+    const { atualizarFundGuide } = await import('../parsers/fund-guide');
+    atualizarFundGuide(dados);
+    return true;
+  }
+  return false;
 }

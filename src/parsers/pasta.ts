@@ -10,7 +10,9 @@ import { lerPdfLinhas, lerExtratoPdf } from './pdf-reader';
 import { lerFoto, lerFotoExtrato } from './ocr';
 import { buscarPtax } from './nomad';
 import { reconciliar } from './reconciliar';
-import { idbBanco, salvarPoliticas, salvarBaseBtg, gravarLocal, registrar, donoPorPasta, lembrarDonoPasta } from '../domain/storage';
+import { ehFundGuideExcel, lerFundGuideExcel, atualizarFundGuide } from './fund-guide';
+import { classificar } from './classification';
+import { idbBanco, salvarPoliticas, salvarBaseBtg, salvarFundGuide, gravarLocal, registrar, donoPorPasta, lembrarDonoPasta } from '../domain/storage';
 import { cadastroDe } from '../domain/calculations';
 import { adicionarFonte, recalcular } from '../domain/pipeline';
 import { CHAVE_CAD_ARQ } from '../domain/constants';
@@ -198,6 +200,9 @@ export async function lerArquivo(arquivo: Blob | File, opc: { tipo?: string; ins
     const buffer = tipo === 'foto' ? null : await arquivo.arrayBuffer();
     if (tipo === 'excel') {
       const wb = XLSX.read(buffer, { type: 'array' });
+      if (ehFundGuideExcel(wb)) {
+        return { fundGuide: lerFundGuideExcel(wb) };
+      }
       if (ehBaseBtgExcel(wb)) {
         return { baseBtg: lerBaseBtgExcel(wb) };
       }
@@ -229,8 +234,41 @@ export async function lerArquivo(arquivo: Blob | File, opc: { tipo?: string; ins
   return { ext };
 }
 
+export function reclassificarPosicoes() {
+  for (const fonte of S.fontes.values()) {
+    for (const reg of (fonte.registros || [])) {
+      const cls = classificar(reg.ativo || reg.produto || '', { categoria: reg.mercado, cnpj: reg.cnpj });
+      if (cls && (cls as any).guia) {
+        reg.estrategia = cls.estr;
+        reg.mercado = cls.classe;
+        reg.classe = cls.classe;
+        reg.sub = cls.sub;
+        reg.subclasse = cls.sub;
+        if ((cls as any).guia?.cnpjFormatado && !reg.cnpj) reg.cnpj = (cls as any).guia.cnpjFormatado;
+        if ((cls as any).guia?.gestor && !(reg as any).gestor) (reg as any).gestor = (cls as any).guia.gestor;
+        if ((cls as any).guia?.benchmark && !(reg as any).benchmark) (reg as any).benchmark = (cls as any).guia.benchmark;
+      }
+    }
+  }
+}
+
 export async function processarArquivo(arquivo: Blob | File, opc: { tipo?: string; inst?: string } = {}, lido?: any): Promise<any> {
   const r = lido || (await lerArquivo(arquivo, opc));
+  if (r.fundGuide) {
+    atualizarFundGuide(r.fundGuide);
+    await salvarFundGuide(r.fundGuide);
+    registrar('Fund Guide BTG importado', `${r.fundGuide.length} fundos atualizados via ${(arquivo as File).name || 'Excel'}`);
+    reclassificarPosicoes();
+    recalcular();
+    const aviso = $('#aviso-carga');
+    if (aviso) {
+      aviso.textContent = `Base Fund Guide BTG carregada com sucesso: ${r.fundGuide.length} fundos oficiais mapeados por estratégia.`;
+      aviso.hidden = false;
+      setTimeout(() => { if (aviso) aviso.hidden = true; }, 4000);
+    }
+    alert(`Base Fund Guide BTG carregada com sucesso: ${r.fundGuide.length} fundos oficiais mapeados por estratégia.`);
+    return { fundGuide: true };
+  }
   if (r.politicas) {
     for (const [conta, pol] of r.politicas) {
       S.politicasPorConta.set(conta, pol);

@@ -54,6 +54,15 @@ export const DEPARA = [
   { re: /\bKNCR11\b/, classe: 'FII', contraparte: 'Imob', gestor: 'Kinea', carac: 'FII de recebíveis' },
   { re: /\bCTSE11\b/, emissor: 'CL Sites S.A. (grupo Clemar)', setor: 'Torres de telecom' },
   { re: /\bCJEN13\b/, emissor: 'TESC — Terminal Santa Catarina', setor: 'Terminal portuário' },
+  // Mapeamentos específicos de Risco de Crédito solicitados pelo escritório
+  { re: /\bKINEA OPORTUNIDADE/i, contraparte: 'Corp', gestor: 'Kinea', carac: 'Crédito Privado Corporativo' },
+  { re: /\bMAG CASH 10/i, contraparte: 'Banc', gestor: 'Mongeral Aegon', carac: 'Crédito Bancário' },
+  { re: /\bMCA\b|\bMCA II\b/i, contraparte: 'Estr', gestor: 'MAG / MCA', carac: 'Crédito Estruturado (FIDC)' },
+  { re: /\bBRADESCO ZUPO\b/i, contraparte: 'Banc', gestor: 'Bradesco Asset', carac: 'Crédito Bancário' },
+  { re: /\bSPARTA TOP\b/i, contraparte: 'Corp', gestor: 'Sparta', carac: 'Crédito Privado Corporativo' },
+  { re: /\bABSOLUTE CRETA\b/i, contraparte: 'Corp', gestor: 'Absolute', carac: 'Crédito Privado Corporativo' },
+  { re: /\bBTG CRED CORP\b|\bCRED CORP\b/i, contraparte: 'Corp', gestor: 'BTG Pactual', carac: 'Crédito Privado Corporativo' },
+  { re: /\bCDB\b/i, contraparte: 'Banc', carac: 'Crédito Bancário' },
 ];
 // Casas gestoras reconhecidas pelo nome do veículo (o grupo consolidado fica no topo para ter prioridade)
 export const GESTORAS = [
@@ -143,6 +152,8 @@ export function dgEnriquecer(p: any, base: Date) {
   else if (deriv) cp = 'Deriv';
   else if (exterior) cp = 'Intl';
   else if (dp.contraparte) cp = dp.contraparte;
+  else if (p.contraparte) cp = p.contraparte;
+  else if (p.riscoCredito) cp = p.riscoCredito;
   else if (ehTP || (ehFundo && tem(/ (tesouro|selic|ntn|lft|ltn) /))) cp = 'Sob';
   else if (ehBanc || m === 'coe') cp = 'Banc';
   else if (ehPriv) cp = 'Corp';
@@ -157,7 +168,11 @@ export function dgEnriquecer(p: any, base: Date) {
   else if (classe === 'Acoes') cp = 'Acoes';
   else if (classe === 'Intl') cp = 'Intl';
   else if (classe === 'MM') cp = 'MM';
-  else if (ehFundo && ['Pos', 'Infl', 'Pre'].includes(classe)) cp = 'FRF';
+  else if (ehFundo && ['Pos', 'Infl', 'Pre'].includes(classe)) {
+    if (tem(/ (mca|fidc|estruturado) /)) cp = 'Estr';
+    else if (tem(/ (mag cash|zupo|bancario|pos fixado|di simples|referenciado di|tesouraria) /)) cp = 'Banc';
+    else cp = 'Corp';
+  }
   else cp = 'Outros';
 
   // Casa gestora (quem administra o veículo) x emissor direto (devedor final)

@@ -328,3 +328,191 @@ export function lerBTGPdf(linhas: string[]): ExtratoLido {
   if (!regs.length) throw new Error('Reconheci o extrato do BTG em PDF, mas não encontrei as posições. Use o Excel do extrato.');
   return { inst: 'BTG', conta: conta || '', clienteSugerido: cliente, data: dataStr, total, regs, avisos, contaBTG: conta || undefined };
 }
+
+export function ehBTGRelatorioPerformance(linhas: string[]): boolean {
+  const txt = linhas.slice(0, 50).join(' ');
+  return /relat\S+rio de performance/i.test(txt) && linhas.some(l => /detalhamento dos ativos|posi\S+o consolidada/i.test(l));
+}
+
+export function lerBTGRelatorioPerformancePdf(linhas: string[]): ExtratoLido {
+  const txt = linhas.join('\n');
+  const conta = txt.match(/Cont\S*\s+Investimento\s+(\d+)/i)?.[1] || '';
+
+  let cliente: string | null = null;
+  for (const l of linhas.slice(0, 30)) {
+    const m = l.match(/^Nome\s+([A-ZÀ-Ý0-9\s.'&-]+)$/i);
+    if (m) {
+      cliente = m[1].trim();
+      break;
+    }
+  }
+
+  const per = txt.match(/Per\S+odo de \d{2}\/\d{2}\/\d{4}\s+a\s+(\d{2}\/\d{2}\/\d{4})/i);
+  const dataStr = per ? per[1] : null;
+
+  let total: number | null = null;
+  const totMatch = txt.match(/Patrim\S+nio bruto.*?R\$\s*([\d.]+,\d{2})/i) || txt.match(/Total\s+100,00%\s+R\$\s*([\d.]+,\d{2})/i);
+  if (totMatch) total = numero(totMatch[1]);
+
+  const regs: ExtratoRegistro[] = [], avisos: string[] = [];
+  let inDet = false;
+  let currEstr: string | null = null;
+
+  for (let i = 0; i < linhas.length; i++) {
+    const l = linhas[i].trim();
+    if (!l) continue;
+
+    if (/detalhamento dos ativos/i.test(l)) {
+      inDet = true;
+      continue;
+    }
+
+    if (inDet) {
+      if (/^(A rentabilidade completa|Movimenta\S+o|Disclaimer|Perfil de Risco)/i.test(l)) {
+        inDet = false;
+        continue;
+      }
+
+      if (/em carteira/i.test(l)) {
+        const n = norm(l);
+        if (/pos.*xado/.test(n)) currEstr = 'Pós-fixado';
+        else if (/infla/.test(n)) currEstr = 'Inflação';
+        else if (/pre.*xado/.test(n)) currEstr = 'Pré-fixado';
+        else if (/multi/.test(n)) currEstr = 'Retorno Absoluto (MM)';
+        else if (/vari|acoes/.test(n)) currEstr = 'Renda Variável';
+        else if (/alt/.test(n)) currEstr = 'Alternativo';
+        else if (/intern/.test(n)) currEstr = 'Internacional';
+        continue;
+      }
+
+      if (/^(Ativo|TOTAL R\$|P\S+gina \d+|<<PAGINA>>|Relat\S+rio de Performance|Per\S+odo de)/i.test(l)) {
+        continue;
+      }
+
+      const mVal = l.match(/R\$\s*([\d.]+,\d{2})(?:\s+(?:-|\S+)\s+R\$\s*([\d.]+,\d{2}))?/);
+      if (mVal) {
+        const bruto = numero(mVal[1]);
+        if (!bruto) continue;
+        const liq = mVal[2] ? numero(mVal[2]) : bruto;
+
+        const prefix = l.slice(0, mVal.index).trim();
+        const mDt = prefix.match(/(\d{2}\/\d{2}\/\d{4})/);
+        let nomeAtivo = prefix;
+        let venc: string | undefined;
+        let resg: string | undefined;
+        let qtd: number | undefined;
+        let taxa: string | undefined;
+
+        if (mDt) {
+          nomeAtivo = prefix.slice(0, mDt.index).trim();
+          let resto = prefix.slice(mDt.index + mDt[0].length).trim();
+
+          const mVenc = resto.match(/\b(\d{2}\/\d{2}\/\d{4})\b/);
+          if (mVenc) {
+            venc = mVenc[1];
+            resto = resto.replace(mVenc[0], '');
+          }
+
+          const mResg = resto.match(/\b(D\+\d+)\b/i);
+          if (mResg) {
+            resg = mResg[1].toUpperCase();
+            resto = resto.replace(mResg[0], '');
+          }
+
+          const mQtd = resto.match(/^([\d.]+,\d{2})/);
+          if (mQtd) {
+            qtd = numero(mQtd[1]) || undefined;
+            resto = resto.replace(mQtd[0], '');
+          }
+
+          taxa = resto.replace(/\s+/g, ' ').trim() || undefined;
+        }
+
+        const cls = classificar(nomeAtivo, { indexador: taxa, dica: currEstr || '' });
+        const emissorPadrao = cls.tipo === 'LFT'
+          ? 'BANCO CENTRAL DO BRASIL'
+          : nomeAtivo.includes(' - ')
+          ? nomeAtivo.split(' - ')[0].trim()
+          : undefined;
+
+        regs.push({
+          mercado: cls.classe,
+          sub: cls.sub,
+          ativo: nomeAtivo,
+          produto: nomeAtivo,
+          emissor: emissorPadrao,
+          vencimento: venc,
+          quantidade: qtd,
+          bruto,
+          liquido: liq ?? bruto,
+          estrategia: currEstr || cls.estr,
+          taxaTexto: taxa,
+          riscoCredito: cls.riscoCredito,
+          contraparte: cls.contraparte || cls.riscoCredito,
+          cnpj: (cls as any).guia?.cnpjFormatado,
+          gestor: (cls as any).guia?.gestor,
+          benchmark: (cls as any).guia?.benchmark,
+          categoriaBtg: (cls as any).guia?.categoriaBtg,
+          subcategoriaBtg: (cls as any).guia?.subcategoriaBtg
+        });
+      }
+    }
+  }
+
+  if (!regs.length) {
+    let inPos = false;
+    for (const l of linhas) {
+      if (/posi\S+o consolidada dos investimentos/i.test(l)) {
+        inPos = true;
+        continue;
+      }
+      if (inPos) {
+        if (/^(P\S+gina \d+|<<PAGINA>>|quando abrimos a rentabilidade)/i.test(l)) {
+          inPos = false;
+          continue;
+        }
+        const matches = [...l.matchAll(/([A-ZÀ-Ý0-9\s.'&-]+?)\s+([\d.]+,\d{2})\s+[\d.]+,\d{2}/g)];
+        for (const m of matches) {
+          const nome = m[1].trim();
+          const bruto = numero(m[2]);
+          if (!bruto || /^(Total|Ativo|Fundo de Investimento|Renda Fixa|P[óo]s-[f|a]xado|Infla[çc][ãa]o)$/i.test(nome)) continue;
+          const cls = classificar(nome);
+          regs.push({
+            mercado: cls.classe,
+            sub: cls.sub,
+            ativo: nome,
+            produto: nome,
+            bruto,
+            liquido: bruto,
+            estrategia: cls.estr,
+            riscoCredito: cls.riscoCredito,
+            contraparte: cls.contraparte || cls.riscoCredito,
+            cnpj: (cls as any).guia?.cnpjFormatado,
+            gestor: (cls as any).guia?.gestor,
+            benchmark: (cls as any).guia?.benchmark
+          });
+        }
+      }
+    }
+  }
+
+  if (!regs.length) {
+    throw new Error('Reconheci o Relatório de Performance do BTG, mas não foi possível extrair as posições.');
+  }
+
+  if (total === null) {
+    total = regs.reduce((acc, r) => acc + (r.bruto || 0), 0);
+  }
+
+  return {
+    inst: 'BTG',
+    conta: conta || '',
+    clienteSugerido: cliente,
+    data: dataStr,
+    total,
+    regs,
+    avisos,
+    contaBTG: conta || undefined
+  };
+}
+

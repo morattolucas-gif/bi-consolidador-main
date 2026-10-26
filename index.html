@@ -38,12 +38,14 @@
             <option value="classe">Classe</option>
             <option value="subclasse">Subclasse</option>
             <option value="estrategia">Estratégia</option>
+            <option value="riscoCredito">Risco de Crédito</option>
             <option value="instituicao">Instituição</option>
           </select>
         </label>
         <button class="btn btn-topo" id="btn-usuario" title="Quem está usando o B.I. (vai para o histórico)">Usuário</button>
         <button class="btn btn-topo" id="btn-historico" title="Quem fez o quê no B.I. e as mudanças no código">Histórico</button>
         <button class="btn btn-topo" id="btn-politicas" title="Gerenciar e importar Políticas de Investimento em Excel por Conta (LGPD)">Políticas</button>
+        <button class="btn btn-topo" id="btn-fund-guide" title="Guia oficial de fundos BTG para classificação fidedigna por estratégia">📘 Fund Guide</button>
         <button class="btn btn-topo" id="btn-pasta" title="Lê a pasta de posições: a planilha do BTG mais recente e o extrato mais recente de cada cliente">📁 Ler pasta</button>
         <button class="btn btn-topo" id="btn-posicao" title="Subir planilha consolidada da base inteira (D-0 / D-1) para acompanhar saldos e política">📊 Posição diária</button>
         <button class="btn btn-pri" id="btn-anexar" title="Subir extrato oficial fechado por cliente para relatórios">📑 Extrato fechado</button>
@@ -67,6 +69,7 @@
   <div id="aviso-cad" class="faixa-exemplo" hidden></div>
   <input type="file" id="arq-cadastro" accept=".js" hidden>
   <input type="file" id="input-base-btg" accept=".xlsx,.xls,.xlsm" hidden>
+  <input type="file" id="input-fund-guide" accept=".xlsx,.xls,.xlsm" hidden>
 
   <!-- Estado inicial: bifurcação clara Posição Diária vs Extrato Fechado -->
   <section id="vazio" class="vazio">
@@ -101,6 +104,15 @@
         <h3>Base BTG (CRM / Segmentação)</h3>
         <p>Planilha de cadastro e clientes da corretora (Base BTG). Segmenta a base em <b>PF vs PJ</b>, calcula faixas de patrimônio líquido (PL) e exporta dados para o <b>plano de negócio</b>.</p>
         <button type="button" class="btn" id="btn-vazio-base" style="background:#6c3483;color:#fff;border:0;">👥 Subir Base BTG</button>
+      </div>
+
+      <!-- Opção 4: Guia de Fundos BTG (Estratégias) -->
+      <div class="vazio-card" id="card-vazio-fundguide">
+        <div class="vazio-card-badge" style="background:#0284c7;">Classificação Oficial</div>
+        <div class="vazio-card-icon">📘</div>
+        <h3>Guia de Fundos (Estratégias)</h3>
+        <p>Base com <b>1.029 fundos</b> categorizados por estratégia (CVM, Anbima e BTG). Garante que nenhum fundo ou ativo seja classificado errado. Clique para consultar ou atualizar.</p>
+        <button type="button" class="btn" id="btn-vazio-fundguide" style="background:#0284c7;color:#fff;border:0;">📘 Consultar / Subir Guia</button>
       </div>
     </div>
 
@@ -144,6 +156,7 @@
               <button data-v="classe" aria-pressed="true">Classe</button>
               <button data-v="subclasse" aria-pressed="false">Subclasse</button>
               <button data-v="estrategia" aria-pressed="false">Estratégia</button>
+              <button data-v="riscoCredito" aria-pressed="false">Risco de Crédito</button>
               <button data-v="instituicao" aria-pressed="false">Instituição</button>
               <button data-v="ativo" aria-pressed="false">Ativo</button>
             </span>
@@ -330,6 +343,7 @@
 
 <div id="tip" role="tooltip"></div>
 <dialog id="dlg-extrato" aria-label="Adicionar extrato"></dialog>
+<dialog id="dlg-fund-guide" aria-label="Guia de Fundos BTG"></dialog>
 
 
 

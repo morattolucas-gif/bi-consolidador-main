@@ -11,6 +11,7 @@ import { CHAVE_CAD, CHAVE_HIST, CHAVE_USUARIO, CHAVE_VERSAO, VERSOES_BI, VERSAO_
 import { buscarPtax } from '../../parsers/nomad';
 import { processarArquivos, atualizarComPasta, setModalDonoHandler } from '../../parsers/pasta';
 import { baixarModeloPoliticaExcel, lerPoliticasExcel } from '../../parsers/politicas-excel';
+import { obterFundGuideAtual, obterTotalFundosGuia } from '../../parsers/fund-guide';
 import type { ExtratoLido, ExtratoRegistro } from '../../types';
 
 export const INSTITUICOES = [
@@ -1013,4 +1014,121 @@ export function baixarModelo(): void {
   XLSX.utils.book_append_sheet(wb, ws, 'Posição');
   XLSX.writeFile(wb, 'modelo_extrato_outras_instituicoes.xlsx');
 }
+
+export function abrirFundGuideModal(): void {
+  let dlg = $('#dlg-fund-guide') as HTMLDialogElement;
+  if (!dlg) {
+    dlg = document.createElement('dialog');
+    dlg.id = 'dlg-fund-guide';
+    document.body.appendChild(dlg);
+  }
+
+  const itens = obterFundGuideAtual();
+  const total = itens.length;
+
+  const cats: Record<string, number> = {};
+  const estrs: Record<string, number> = {};
+  for (const item of itens) {
+    cats[item.categoriaBtg] = (cats[item.categoriaBtg] || 0) + 1;
+    estrs[item.estrategia] = (estrs[item.estrategia] || 0) + 1;
+  }
+
+  const renderTabela = (termo: string = '') => {
+    const limpo = norm(termo);
+    const filtrados = termo
+      ? itens.filter(i => norm(i.fundo).includes(limpo) || (i.cnpj && i.cnpj.includes(limpo)) || norm(i.estrategia).includes(limpo) || norm(i.categoriaBtg).includes(limpo))
+      : itens.slice(0, 50);
+
+    return `
+      <div style="font-size:12px;color:var(--mut);margin-bottom:8px;">
+        Exibindo ${filtrados.length} de ${total} fundos cadastrados ${termo ? `(filtrado por "${esc(termo)}")` : '(primeiros 50 fundos)'}
+      </div>
+      <div style="max-height:360px;overflow-y:auto;border:1px solid var(--borda);border-radius:6px;">
+        <table class="tabela-limpa" style="width:100%;font-size:12px;border-collapse:collapse;">
+          <thead style="position:sticky;top:0;background:var(--bg-card);border-bottom:2px solid var(--borda);">
+            <tr>
+              <th style="padding:8px;text-align:left;">Fundo</th>
+              <th style="padding:8px;text-align:left;">CNPJ</th>
+              <th style="padding:8px;text-align:left;">Categoria BTG</th>
+              <th style="padding:8px;text-align:left;">Subcategoria</th>
+              <th style="padding:8px;text-align:left;">Estratégia Oficial</th>
+              <th style="padding:8px;text-align:left;">Benchmark</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${filtrados.map(f => `
+              <tr style="border-bottom:1px solid var(--borda-suave, #eee);">
+                <td style="padding:6px 8px;font-weight:600;">${esc(f.fundo)}</td>
+                <td style="padding:6px 8px;font-family:monospace;">${esc(f.cnpjFormatado || f.cnpj || '-')}</td>
+                <td style="padding:6px 8px;">${esc(f.categoriaBtg)}</td>
+                <td style="padding:6px 8px;">${esc(f.subcategoriaBtg)}</td>
+                <td style="padding:6px 8px;"><span class="badge" style="background:#e8f4fd;color:#0366d6;font-weight:700;padding:2px 6px;border-radius:4px;">${esc(f.estrategia)}</span></td>
+                <td style="padding:6px 8px;color:var(--mut);">${esc(f.benchmark || '-')}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+    `;
+  };
+
+  dlg.innerHTML = `
+    <div class="dlg" style="max-width:850px;width:95vw;">
+      <div class="dlg-topo" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+        <div>
+          <h2 style="margin:0;font-size:18px;">📘 Base Oficial Fund Guide BTG (Mapeamento de Estratégias)</h2>
+          <p style="margin:4px 0 0;font-size:13px;color:var(--mut);">
+            Base ativa com <b>${total} fundos</b> mapeados por categoria e subcategoria oficial para blindar as alocações contra classificações erradas.
+          </p>
+        </div>
+        <button type="button" class="btn btn-sm btn-fechar" id="fg-fechar">✕</button>
+      </div>
+
+      <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(130px, 1fr));gap:8px;margin-bottom:16px;">
+        ${Object.entries(estrs).map(([estr, count]) => `
+          <div style="background:var(--bg-fundo, #f8f9fa);border:1px solid var(--borda);border-radius:6px;padding:8px;text-align:center;">
+            <div style="font-size:11px;color:var(--mut);text-transform:uppercase;">${esc(estr)}</div>
+            <div style="font-size:16px;font-weight:700;color:var(--marca);">${count}</div>
+          </div>
+        `).join('')}
+      </div>
+
+      <div style="display:flex;gap:12px;margin-bottom:12px;align-items:center;">
+        <input type="search" id="fg-busca" placeholder="🔍 Buscar fundo por nome, CNPJ ou categoria..." style="flex:1;padding:8px 12px;border:1px solid var(--borda);border-radius:6px;font-size:13px;">
+        <button type="button" class="btn" id="fg-btn-upload" style="white-space:nowrap;background:var(--marca);color:#fff;border:0;">📥 Atualizar Planilha</button>
+      </div>
+
+      <div id="fg-container-tabela">
+        ${renderTabela()}
+      </div>
+
+      <div style="margin-top:16px;display:flex;justify-content:flex-end;">
+        <button type="button" class="btn btn-pri" id="fg-btn-ok">Fechar</button>
+      </div>
+    </div>
+  `;
+
+  const inputBusca = dlg.querySelector('#fg-busca') as HTMLInputElement;
+  const containerTabela = dlg.querySelector('#fg-container-tabela') as HTMLElement;
+  if (inputBusca && containerTabela) {
+    inputBusca.addEventListener('input', () => {
+      containerTabela.innerHTML = renderTabela(inputBusca.value);
+    });
+  }
+
+  const fechar = () => dlg.close();
+  dlg.querySelector('#fg-fechar')?.addEventListener('click', fechar);
+  dlg.querySelector('#fg-btn-ok')?.addEventListener('click', fechar);
+
+  const btnUpload = dlg.querySelector('#fg-btn-upload') as HTMLButtonElement;
+  if (btnUpload) {
+    btnUpload.addEventListener('click', () => {
+      const inp = $('#input-fund-guide') as HTMLInputElement;
+      if (inp) inp.click();
+    });
+  }
+
+  dlg.showModal();
+}
+
 
