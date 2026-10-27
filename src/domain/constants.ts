@@ -116,6 +116,10 @@ export const FAIXAS_PADRAO_BASE = [
 ];
 
 export const VERSOES_BI = [
+  { versao: '2026.10.27', data: '2026-10-27', autor: 'Vinicius + Claude', mudancas: [
+    'Compromissadas aparecem como liquidez D+0 (curto prazo), com o nome "Compromissada" (antes saíam como debênture até o vencimento).',
+    'CDBs de liquidez diária ficam juntos numa linha só ("CDB BTG Pactual — liquidez diária — N papéis"), sem separar por vencimento, e saem do quadro de papéis com vencimento.',
+  ] },
   { versao: '2026.10.26', data: '2026-10-26', autor: 'Lucas + IA', mudancas: [
     'Integração oficial da Base Fund Guide BTG (1.029 fundos mapeados por estratégia): classificação fidedigna por CNPJ e Nome, identificação automática de estratégias oficiais (Pós-fixado, Inflação, Retorno Absoluto MM, Renda Variável, Internacional, Alternativo) e suporte a upload dinâmico de planilhas FundGuide_*.xlsx.',
   ] },

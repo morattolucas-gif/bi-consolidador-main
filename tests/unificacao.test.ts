@@ -54,3 +54,23 @@ describe('Reconhecimento de PDFs pelo conteúdo', () => {
     expect(e.total).toBeCloseTo(112036.2, 2);
   });
 });
+
+import { dgEnriquecer } from '../src/components/views/diagnostico';
+describe('Liquidez diária no diagnóstico', () => {
+  const base = new Date(2026, 9, 27);
+  const pos = (o: any) => ({ conta: '1', nome: 'X', classe: 'Renda Fixa', subclasse: 'PRIVADO', estrategia: 'Pós-fixado', instituicao: 'BTG', bruto: 1000, liquido: 1000, ...o });
+  it('compromissada é liquidez D+0 (curto prazo), não "até o vencimento"', () => {
+    const x = dgEnriquecer(pos({ ativo: 'DEB-TESTE11', produto: 'COMPROMISSADA', nomeAtivo: 'DEB-TESTE11', emissor: 'BTG PACTUAL SA', vencimento: new Date(2027, 1, 16), taxaTexto: '85,00% do CDI' }), base);
+    expect(x.janela).toBe('dia');
+    expect(x.prazo).toBe('C');
+    expect(x.nome).toMatch(/^Compromissada/);
+  });
+  it('CDBs de liquidez diária do custodiante têm o mesmo nome, sem vencimento', () => {
+    const a = dgEnriquecer(pos({ subclasse: 'BANCARIO', ativo: 'CDB-A', produto: 'CDB', nomeAtivo: 'CDB-A', emissor: 'BANCO BTG PACTUAL S A', vencimento: new Date(2027, 11, 29), taxaTexto: 'CDI' }), base);
+    const b = dgEnriquecer(pos({ subclasse: 'BANCARIO', ativo: 'CDB-B', produto: 'CDB', nomeAtivo: 'CDB-B', emissor: 'BANCO BTG PACTUAL S A', vencimento: new Date(2028, 0, 13), taxaTexto: 'CDI' }), base);
+    expect(a.janela).toBe('dia');
+    expect(a.nome).toBe(b.nome);
+    expect(a.carac).toBe(b.carac);
+    expect(a.nome).not.toMatch(/20\d\d/);
+  });
+});

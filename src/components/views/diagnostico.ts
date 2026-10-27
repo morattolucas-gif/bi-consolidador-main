@@ -119,6 +119,8 @@ export function dgEnriquecer(p: any, base: Date) {
   const ehFII = sub === 'fii' || tem(/ (fii|fiagro) /);
   const ehFIP = tem(/ fip /) || tem(/ mercados privados /) || tem(/ private equity /);
   const ehFIDC = tem(/ fidc /);
+  // Compromissada (no extrato do BTG vem como "Compromissada -> Debênture"; na planilha, ativo "Comp*..."): liquidez D+0
+  const ehComp = tem(/ compromissada /) || /^COMP\*/i.test(String(p.ativo || ''));
   const ehLista = m === 'renda variavel';
   const ticker = (p.ativo || '').toUpperCase().match(/^[A-Z]{4}\d{1,2}$/)?.[0] || null;
   const acaoDireta = ehLista && !ehFII && ticker && !/11$/.test(ticker);
@@ -189,7 +191,7 @@ export function dgEnriquecer(p: any, base: Date) {
     else {
       ge = dp.emissor || emissorCurto(p.emissor) || 'Emissor não informado na base';
       const tipo = ehBanc ? (tem(/ lca /) ? 'LCA' : tem(/ lci /) ? 'LCI' : tem(/ lf /) ? 'LF' : 'CDB') : tem(/ cri /) ? 'CRI' : tem(/ (cra|crapre) /) ? 'CRA' : m === 'coe' ? 'COE'
-        : tem(/ (debenture|debentures|deb) /) || !p.produto ? 'Debênture' : p.produto;
+        : ehComp ? 'Compromissada' : tem(/ (debenture|debentures|deb) /) || !p.produto ? 'Debênture' : p.produto;
       papel = dp.setor ? `${dp.setor} — ${tipo}` : (ehBanc ? `Bancário — ${tipo}` : tipo);
     }
   } else {
@@ -214,7 +216,7 @@ export function dgEnriquecer(p: any, base: Date) {
     if (classe === 'Pos' && tem(/ (di|selic|liquidez|simples|tesouro|referenciado|referen) /)) { prazo = 'C'; janela = 'dia'; }
     else { prazo = ['Alt', 'Acoes', 'Intl'].includes(classe) || ehFIDC ? 'L' : 'M'; janela = 'cot'; }
   }
-  else if (tem(/ automatico /) || tem(/ automa co /) || liqDiaria) { prazo = 'C'; janela = 'dia'; }
+  else if (tem(/ automatico /) || tem(/ automa co /) || liqDiaria || ehComp) { prazo = 'C'; janela = 'dia'; }
   else if (anos !== null) { prazo = anos <= 2 ? 'M' : 'L'; janela = 'venc'; }
   else { prazo = 'M'; janela = direto ? 'venc' : 'cot'; }
   // Horizonte definido pelo escritório para emissores específicos (papéis com mercado secundário)
@@ -228,7 +230,8 @@ export function dgEnriquecer(p: any, base: Date) {
   // Nome exibido e característica
   let nome = dp.nome || (ehFundo && p.nomeAtivo === p.nomeAtivo.toUpperCase() ? nomeLimpo(p.nomeAtivo) : p.nomeAtivo);
   // Papel sem vencimento no extrato (ex.: securitizadora por foto): o código do ativo diferencia as posições
-  if (!dp.nome && (ehPriv || ehBanc) && !deriv) nome = `${papel.split('— ').pop()} ${ge}${p.vencimento ? ' – ' + mesAno(p.vencimento) : p.ativo && p.ativo !== p.produto ? ' — ' + p.ativo : ''}`;
+  if (!dp.nome && (ehPriv || ehBanc) && !deriv) nome = liqDiaria ? `${papel.split('— ').pop()} ${ge} — liquidez diária`
+    : `${papel.split('— ').pop()} ${ge}${p.vencimento ? ' – ' + mesAno(p.vencimento) : p.ativo && p.ativo !== p.produto ? ' — ' + p.ativo : ''}`;
   if (exterior) nome = p.ativo && p.produto && p.ativo !== p.produto ? `${p.ativo} — ${p.produto}` : (p.produto || p.ativo);
   if (!dp.nome && ehTP) nome = `${p.produto || 'Título público'} Tesouro Nacional${p.vencimento ? ' ' + p.vencimento.getFullYear() : ''}`;
   if (classe === 'Caixa') nome = p.receber ? `A receber — ${p.nomeAtivo}` : p.transito ? `Valor em trânsito — ${p.nomeAtivo}` : 'Saldo em conta corrente';
@@ -240,7 +243,9 @@ export function dgEnriquecer(p: any, base: Date) {
   else if (direto && (ehTP || ehBanc || ehPriv || m === 'coe')) {
     const idx = p.taxaTexto ? p.taxaTexto : classe === 'Pos' ? (tx ? (tx > 20 ? `${num(tx)}% do CDI` : `CDI + ${num(tx)}%`) : 'CDI')
       : classe === 'Infl' ? (tx ? `IPCA + ${num(tx)}%` : 'IPCA+') : classe === 'Pre' ? (tx ? `${num(tx)}% a.a.` : 'Pré-fixado') : (p.estrategia || '');
-    carac = [m === 'coe' ? 'COE' : idx, liqDiaria ? 'liquidez diária' : '', p.vencimento ? (liqDiaria ? String(p.vencimento.getFullYear()) : dataBR(p.vencimento)) : 'venc. não informado'].filter(Boolean).join(' • ');
+    // Liquidez diária (CDB do custodiante e compromissada): o vencimento não importa para o cliente
+    carac = liqDiaria ? [idx, 'liquidez diária'].join(' • ')
+      : [m === 'coe' ? 'COE' : idx, ehComp ? 'compromissada • liquidez D+0' : '', p.vencimento ? dataBR(p.vencimento) : 'venc. não informado'].filter(Boolean).join(' • ');
   }
   else if (exterior) carac = `${p.subclasse}${p.usd ? ' • US$ ' + num(p.usd) : ''}`;
   else if (ehFIP) carac = tem(/ (mercados privados|private) /) ? 'Private equity' : 'FIP';
@@ -902,7 +907,7 @@ export function renderDiag(s: any, P: any[]) {
       { rot: 'Janela', w: '24%', l: 1, f: j => `<span class="nm">${esc(JANELAS[j.k])}</span>` }, { rot: 'Valor (R$)', w: '18%', f: j => rsDG(j.v) },
       { rot: '% carteira', w: '12%', f: j => pcT(j.v) }, { rot: 'Composição', w: '46%', l: 1, cls: 'ativos', f: j => listaNomes(j.itens) },
     ], jan, ['TOTAL', rsDG(total), '100,00%', '']);
-    const venc = L.filter(x => x.direto && x.p.vencimento instanceof Date && x.classe !== 'Caixa').sort((a, b) => a.p.vencimento - b.p.vencimento);
+    const venc = L.filter(x => x.direto && x.p.vencimento instanceof Date && x.classe !== 'Caixa' && x.janela !== 'dia').sort((a, b) => a.p.vencimento - b.p.vencimento);
     const vV = somaLista(venc, x => x.v);
     if (venc.length) {
       const anos = venc.map(x => x.p.vencimento.getFullYear());

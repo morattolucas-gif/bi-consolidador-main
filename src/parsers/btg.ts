@@ -161,6 +161,8 @@ export function lerExtratoBTG(wb: XLSX.WorkBook): ExtratoLido {
     if (/ntn|ltn|lft|tesouro|titulo publico/.test(b)) return { sub: 'TITULO PUBLICO', produto: bloco.replace(/^NTN-?B$/i, 'NTN-B').replace(/^NTN-?F$/i, 'NTN-F') };
     if (/cdb|lca|lci|\blf\b|\blc\b|rdb|lig/.test(b)) return { sub: 'BANCARIO', produto: bloco.toUpperCase() };
     if (/coe/.test(b)) return { mercado: 'COE', sub: 'COE', produto: 'COE' };
+    // "Compromissada -> Debênture": é compromissada (liquidez D+0), não a debênture do lastro
+    if (/compromiss/.test(b)) return { sub: 'PRIVADO', produto: 'COMPROMISSADA' };
     return { sub: 'PRIVADO', produto: /deb/.test(b) ? 'DEBENTURE' : bloco.toUpperCase() };
   };
   const estrPorTaxa = (t: any) => {
@@ -239,7 +241,7 @@ export function lerBTGPdf(linhas: string[]): ExtratoLido {
   const ano4 = (d: string) => d.replace(/^(\d{2})\/(\d{2})\/(\d{2})$/, '$1/$2/20$3');
   const estrPorTaxa = (s: string) => { const n = norm(s); return /ipca|ipc|igp/.test(n) ? 'Inflação' : /cdi|selic/.test(n) ? 'Pós-fixado' : n ? 'Pré-fixado' : null; };
   const tipoRF = (b: string) => { const n = norm(b); return /ntn|ltn|lft|tesouro|titulo/.test(n) ? 'TITULO PUBLICO' : /cdb|lca|lci|\blf\b|rdb|lig/.test(n) ? 'BANCARIO' : 'PRIVADO'; };
-  const produtoRF = (b: string) => /deb/i.test(norm(b)) ? 'DEBENTURE' : tipoRF(b) === 'TITULO PUBLICO' ? b.replace(/^NTN-?B$/i, 'NTN-B').replace(/^NTN-?F$/i, 'NTN-F') : b.toUpperCase();
+  const produtoRF = (b: string) => /compromiss/i.test(norm(b)) ? 'COMPROMISSADA' : /deb/i.test(norm(b)) ? 'DEBENTURE' : tipoRF(b) === 'TITULO PUBLICO' ? b.replace(/^NTN-?B$/i, 'NTN-B').replace(/^NTN-?F$/i, 'NTN-F') : b.toUpperCase();
   let secao = '', bloco = '', pre: string[] = [], emissorCoe = '', plano = '';
 
   for (let i = 0; i < linhas.length; i++) {
