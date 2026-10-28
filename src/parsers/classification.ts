@@ -54,6 +54,7 @@ export function classificar(
       tipo: guia.categoriaBtg,
       riscoCredito: guia.riscoCredito || 'Corp',
       contraparte: guia.riscoCredito || 'Corp',
+      liquidez: guia.liquidez,
       guia
     };
   }

@@ -18,6 +18,7 @@ export interface FundoGuideItem {
   sub: string;
   estrategia: string;
   riscoCredito?: string;
+  liquidez?: string;
 }
 
 export function cleanNorm(s: string): string {
@@ -260,6 +261,18 @@ export function mapearLinhaFundGuide(r: any): FundoGuideItem {
 
   const rawCnpj = r['CNPJ'] ? String(r['CNPJ']).trim() : '';
 
+  let liq: string | undefined;
+  for (const k of Object.keys(r)) {
+    const nk = norm(k);
+    if ((nk.includes('liquidez') || nk.includes('resgate') || nk.includes('cotizacao')) && !nk.includes('horario')) {
+      const v = String(r[k] || '').trim();
+      if (v) {
+        liq = v;
+        break;
+      }
+    }
+  }
+
   return {
     fundo: nome,
     cge: r['CGE'] ? String(r['CGE']).trim() : undefined,
@@ -275,7 +288,8 @@ export function mapearLinhaFundGuide(r: any): FundoGuideItem {
     classe,
     sub: subClasse,
     estrategia: estr,
-    riscoCredito: classificarRiscoCreditoFundo(nome, cat, sub, r['Gestão'])
+    riscoCredito: classificarRiscoCreditoFundo(nome, cat, sub, r['Gestão']),
+    liquidez: liq || (r['Liquidez'] ? String(r['Liquidez']).trim() : undefined)
   };
 }
 

@@ -41,6 +41,7 @@ export interface Posicao {
   titular?: string | null;  // titular como veio no extrato (ex.: a PJ do cliente)
   riscoCredito?: string;
   contraparte?: string;
+  liquidez?: string;
 }
 
 export interface FonteExtrato {

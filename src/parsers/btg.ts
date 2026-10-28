@@ -96,6 +96,7 @@ export function montarPosicao(r: any): Posicao | null {
     caixa: norm(mercado) === 'conta corrente',
     receber: ['valor em transito', 'valores em transito', 'valores a receber', 'proventos a receber'].includes(norm(mercado)),
     transito: norm(mercado) === 'derivativos',
+    liquidez: texto(r.liquidez) || undefined,
     nomeAtivo: ''
   };
   if (p.receber) {
@@ -462,6 +463,7 @@ export function lerBTGRelatorioPerformancePdf(linhas: string[]): ExtratoLido {
           taxaTexto: taxa,
           riscoCredito: cls.riscoCredito,
           contraparte: cls.contraparte || cls.riscoCredito,
+          liquidez: resg || (cls as any).guia?.liquidez || (cls as any).liquidez,
           cnpj: (cls as any).guia?.cnpjFormatado,
           gestor: (cls as any).guia?.gestor,
           benchmark: (cls as any).guia?.benchmark,
@@ -500,6 +502,7 @@ export function lerBTGRelatorioPerformancePdf(linhas: string[]): ExtratoLido {
             estrategia: cls.estr,
             riscoCredito: cls.riscoCredito,
             contraparte: cls.contraparte || cls.riscoCredito,
+            liquidez: (cls as any).guia?.liquidez || (cls as any).liquidez,
             cnpj: (cls as any).guia?.cnpjFormatado,
             gestor: (cls as any).guia?.gestor,
             benchmark: (cls as any).guia?.benchmark

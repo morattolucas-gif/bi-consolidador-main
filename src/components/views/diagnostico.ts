@@ -30,8 +30,8 @@ import {
   soPrimeiroNome,
   valor
 } from '../formatters';
-import { IMG_P_CAPA, IMG_BTG_CAPA, IMG_LOGO_PADRAO } from './report-assets';
 import { DIAG_REPORT_CSS } from '../../styles/report-styles';
+import { buscarFundoGuia } from '../../parsers/fund-guide';
 
 // --- Diagnóstico e Enriquecimento de Ativos ---
 // Grupo consolidado (mesma casa gestora): Contea, Carbyne, BRM, Apex, Eluja e Pignola
@@ -206,6 +206,21 @@ export function dgEnriquecer(p: any, base: Date) {
   // CDB do próprio banco custodiante a até 100% do CDI: liquidez diária
   const instNome = { BTG: 'BTG Pactual', Safra: 'Banco Safra' }[p.instituicao] || p.instituicao;
   const liqDiaria = ehBanc && classe === 'Pos' && tem(/ cdb /) && (!txIdx || txIdx <= 100.5) && emissorCurto(p.emissor) === instNome;
+
+  // Procura liquidez/prazo de resgate informado na posição, no Fund Guide ou no texto
+  let liqFundo = p.liquidez;
+  if (!liqFundo && (ehFundo || ehFIDC)) {
+    const g = buscarFundoGuia(p.nomeAtivo, p.cnpj);
+    if (g?.liquidez) liqFundo = g.liquidez;
+  }
+  if (!liqFundo && (ehFundo || ehFIDC)) {
+    const mD = String(p.nomeAtivo || '').match(/\b(D\+\d+)\b/i) || String(p.taxaTexto || '').match(/\b(D\+\d+)\b/i);
+    if (mD) liqFundo = mD[1].toUpperCase();
+  }
+  if (liqFundo && !p.liquidez) {
+    p.liquidez = liqFundo;
+  }
+
   let prazo, janela;
   if (classe === 'Caixa') { prazo = 'C'; janela = 'dia'; }
   else if (dp.prazo || dp.janela) { prazo = dp.prazo || 'L'; janela = dp.janela && dp.janela !== 'd2' ? dp.janela : 'bolsa'; }
@@ -213,9 +228,32 @@ export function dgEnriquecer(p: any, base: Date) {
   else if (ehFIP || tem(/ d 366 /)) { prazo = 'L'; janela = 'cot'; }
   else if (ehLista || exterior) { prazo = 'L'; janela = 'bolsa'; }
   else if (m === 'criptoativos') { prazo = 'L'; janela = 'dia'; }
-  else if (ehFundo) {
-    if (classe === 'Pos' && tem(/ (di|selic|liquidez|simples|tesouro|referenciado|referen) /)) { prazo = 'C'; janela = 'dia'; }
-    else { prazo = ['Alt', 'Acoes', 'Intl'].includes(classe) || ehFIDC ? 'L' : 'M'; janela = 'cot'; }
+  else if (ehFundo || ehFIDC) {
+    if (classe === 'Pos' && tem(/ (di|selic|liquidez|simples|tesouro|referenciado|referen) /) && (!liqFundo || /D\+[01]\b/i.test(liqFundo))) {
+      prazo = 'C';
+      janela = 'dia';
+    } else if (liqFundo) {
+      const mDias = liqFundo.match(/D\+(\d+)/i);
+      const dias = mDias ? parseInt(mDias[1], 10) : null;
+      if (dias !== null) {
+        if (dias <= 1) {
+          prazo = 'C';
+          janela = 'dia';
+        } else if (dias <= 5) {
+          prazo = 'C';
+          janela = `d${dias}`;
+        } else {
+          prazo = dias <= 730 ? 'M' : 'L';
+          janela = `d${dias}`;
+        }
+      } else {
+        prazo = ['Alt', 'Acoes', 'Intl'].includes(classe) ? 'L' : 'M';
+        janela = 'cot';
+      }
+    } else {
+      prazo = ['Alt', 'Acoes', 'Intl'].includes(classe) || ehFIDC ? 'L' : 'M';
+      janela = 'cot';
+    }
   }
   else if (tem(/ automatico /) || tem(/ automa co /) || liqDiaria || ehComp) { prazo = 'C'; janela = 'dia'; }
   else if (anos !== null) { prazo = anos <= 2 ? 'M' : 'L'; janela = 'venc'; }
@@ -250,12 +288,15 @@ export function dgEnriquecer(p: any, base: Date) {
   }
   else if (exterior) carac = `${p.subclasse}${p.usd ? ' • US$ ' + num(p.usd) : ''}`;
   else if (ehFIP) carac = tem(/ (mercados privados|private) /) ? 'Private equity' : 'FIP';
-  else if (ehFIDC) carac = 'FIDC';
+  else if (ehFIDC) carac = ['FIDC', liqFundo ? `resgate ${liqFundo}` : ''].filter(Boolean).join(' • ');
   else if (ehFII) carac = 'FII listado';
   else if (acaoDireta) carac = 'Ação listada';
   else if (ehLista) carac = 'ETF / ativo listado';
   else if (m === 'previdencia') carac = nomeLimpo(p.nomeAtivo).replace(/\b(FI|FIC|RF|Ref|DI|FIM|FIA|FC)\b/g, '').replace(/\s+/g, ' ').trim();
-  else if (ehFundo) carac = { Pos: 'Fundo pós-fixado', Infl: 'Fundo de inflação', Pre: 'Fundo pré-fixado', MM: 'Multimercado', Acoes: 'Fundo de ações', Intl: 'Fundo internacional', Alt: 'Fundo alternativo' }[classe] || 'Fundo';
+  else if (ehFundo) {
+    const baseFundo = { Pos: 'Fundo pós-fixado', Infl: 'Fundo de inflação', Pre: 'Fundo pré-fixado', MM: 'Multimercado', Acoes: 'Fundo de ações', Intl: 'Fundo internacional', Alt: 'Fundo alternativo' }[classe] || 'Fundo';
+    carac = [baseFundo, liqFundo ? `resgate ${liqFundo}` : ''].filter(Boolean).join(' • ');
+  }
   else carac = p.estrategia || '—';
 
   // Veículo (como o dinheiro está aplicado), para abrir cada classe: fundo, título público, CDB, crédito privado…
@@ -902,12 +943,31 @@ export function renderDiag(s: any, P: any[]) {
   /* 06 — Liquidez e vencimentos */
   grupo('liquidez', 'Liquidez e vencimentos');
   {
-    const ordemJ = Object.keys(JANELAS);
-    const jan = agruparDG(L, x => x.janela).sort((a, b) => ordemJ.indexOf(a.k) - ordemJ.indexOf(b.k));
+    const formatarJanela = (k: string) => {
+      if (JANELAS[k]) return JANELAS[k];
+      const m = k.match(/^d(\d+)$/i);
+      if (m) return `Resgate D+${m[1]}`;
+      if (k === 'resg_esp') return 'Resgate sob regulamento';
+      return k;
+    };
+
+    const ordemJanela = (k: string) => {
+      if (k === 'dia') return 0;
+      if (k === 'bolsa') return 2;
+      const m = k.match(/^d(\d+)$/i);
+      if (m) return 1000 + parseInt(m[1], 10);
+      if (k === 'prev') return 5000;
+      if (k === 'cot' || k === 'resg_esp') return 9000;
+      if (k === 'venc') return 10000;
+      return 8000;
+    };
+
+    const jan = agruparDG(L, x => x.janela).sort((a, b) => ordemJanela(a.k) - ordemJanela(b.k));
     let corpo = `<div class="box-k">Distribuição por janela de liquidez</div>` + tabelaDG([
-      { rot: 'Janela', w: '24%', l: 1, f: j => `<span class="nm">${esc(JANELAS[j.k])}</span>` }, { rot: 'Valor (R$)', w: '18%', f: j => rsDG(j.v) },
+      { rot: 'Janela', w: '24%', l: 1, f: j => `<span class="nm">${esc(formatarJanela(j.k))}</span>` }, { rot: 'Valor (R$)', w: '18%', f: j => rsDG(j.v) },
       { rot: '% carteira', w: '12%', f: j => pcT(j.v) }, { rot: 'Composição', w: '46%', l: 1, cls: 'ativos', f: j => listaNomes(j.itens) },
     ], jan, ['TOTAL', rsDG(total), '100,00%', '']);
+
     const venc = L.filter(x => x.direto && x.p.vencimento instanceof Date && x.classe !== 'Caixa' && x.janela !== 'dia').sort((a, b) => a.p.vencimento - b.p.vencimento);
     const vV = somaLista(venc, x => x.v);
     if (venc.length) {
@@ -917,20 +977,42 @@ export function renderDiag(s: any, P: any[]) {
         { rot: 'Vencimento', w: '10%', f: x => x.p.vencimento.getFullYear() }, { rot: 'Valor (R$)', w: '16%', f: x => rsDG(x.v) }, { rot: '% cart.', w: '8%', f: x => pcT(x.v) },
       ], venc, ['COM VENCIMENTO DEFINIDO', ...(multi ? [''] : []), `${venc.length} ${venc.length === 1 ? 'papel' : 'papéis'}`, Math.min(...anos) === Math.max(...anos) ? Math.min(...anos) : `${Math.min(...anos)}–${Math.max(...anos)}`, rsDG(vV), pcT(vV)]);
     }
+
+    const fundos = L.filter(x => !x.direto && x.classe !== 'Caixa' && x.janela !== 'dia').sort((a, b) => ordemJanela(a.janela) - ordemJanela(b.janela));
+    const vF = somaLista(fundos, x => x.v);
+    if (fundos.length) {
+      corpo += `<div class="box-k bloco-dg">Fundos de investimento — Cronograma de resgate e liquidação</div>` + tabelaDG([
+        { rot: 'Fundo', w: '36%', l: 1, f: x => `<span class="nm">${esc(x.nome)}</span>` },
+        ...colTit,
+        { rot: 'Gestora', w: '20%', l: 1, f: x => esc(x.ge) },
+        { rot: 'Prazo de Resgate', w: '16%', f: x => {
+            const tag = x.p.liquidez || formatarJanela(x.janela).replace('Resgate ', '');
+            return `<span style="background:#e0f2fe;color:#0369a1;padding:2px 8px;border-radius:4px;font-weight:600;font-size:10px;">${esc(tag)}</span>`;
+          }
+        },
+        { rot: 'Valor (R$)', w: '16%', f: x => rsDG(x.v) },
+        { rot: '% cart.', w: '12%', f: x => pcT(x.v) },
+      ], fundos, ['TOTAL EM FUNDOS', ...(multi ? [''] : []), `${fundos.length} fundos`, '—', rsDG(vF), pcT(vF)]);
+    }
+
     const vJ = ks => somaLista(jan.filter(j => ks.includes(j.k)), j => j.v);
-    const dia = vJ(['dia']), bolsa = vJ(['bolsa']), prev = vJ(['prev']), cot = vJ(['cot']), ateV = vJ(['venc']);
+    const dia = vJ(['dia']), bolsa = vJ(['bolsa']), prev = vJ(['prev']), cot = vJ(['cot', 'resg_esp']), ateV = vJ(['venc']);
+    const fundosComPrazo = jan.filter(j => /^d\d+$/i.test(j.k));
+    const vFundosPrazo = somaLista(fundosComPrazo, j => j.v);
+
     const temLiq = [
       `Somando liquidez diária e ativos listados em bolsa, ${rsDG(dia + bolsa)} (${pcT(dia + bolsa)}) viram caixa em até cinco dias úteis.`,
+      vFundosPrazo ? `${rsDG(vFundosPrazo)} (${pcT(vFundosPrazo)}) estão em fundos com prazos de resgate conhecidos e mapeados pelo Fund Guide BTG (${fundosComPrazo.map(f => formatarJanela(f.k)).join(', ')}).` : '',
       prev ? `A previdência (${rsDG(prev)}, ${pcT(prev)}) se resgata em poucos dias, mas o resgate tem efeito tributário e de planejamento: não é liquidez de uso corrente.` : '',
       notaTransito,
     ];
     const semLiq = [
-      cot ? `${rsDG(cot)} (${pcT(cot)}) estão em fundos com cotização própria (FIPs, FIDCs, multimercados e crédito): o prazo de resgate depende de cada regulamento, e alguns só devolvem por amortização.` : '',
+      cot ? `${rsDG(cot)} (${pcT(cot)}) estão em fundos com cotização sob regulamento fechado (FIPs ou veículos ilíquidos que devolvem apenas por amortização).` : '',
       ateV ? `Os papéis de renda fixa direta e COE somam ${rsDG(ateV)} (${pcT(ateV)}) e, sem mercado secundário garantido, são posições para carregar até o vencimento.` : '',
     ];
-    corpo += `<div class="dg-2col bloco-dg"><div>${obsDG(temLiq, 'O que tem liquidez de curto prazo')}</div><div>${obsDG(semLiq, 'O que não tem')}</div></div>`;
+    corpo += `<div class="dg-2col bloco-dg"><div>${obsDG(temLiq, 'Prazos de resgate e liquidez')}</div><div>${obsDG(semLiq, 'Vencimento e carência')}</div></div>`;
     if (dia / total >= 0.1 && (cot + ateV) / total >= 0.25) corpo += obsDG([`A carteira tem dois extremos e pouco meio-termo: ${pcT(dia)} em liquidez imediata e ${pcT(cot + ateV)} em veículos com cotização própria ou vencimento.`]);
-    sec('Liquidez e Vencimentos', 'Em quanto tempo cada real pode virar caixa, e o que depende de cotização ou de vencimento.', corpo);
+    sec('Liquidez e Vencimentos', 'Em quanto tempo cada real pode virar caixa: prazos de resgate de fundos e vencimento de títulos.', corpo);
   }
 
   /* Offshore (seção 4.10 do padrão): só quando houver ativos no exterior com valor em dólar */

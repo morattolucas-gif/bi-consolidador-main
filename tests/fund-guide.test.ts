@@ -117,4 +117,31 @@ describe('Fund Guide BTG - Classificação Oficial de Fundos e Estratégias', ()
     const cdbIpca = classificar('BANCO BTG PACTUAL S.A. — CDB IPCA + 10,07% (CDBA25FCYXV)');
     expect(cdbIpca.riscoCredito).toBe('Banc');
   });
+
+  it('mapeia os prazos de resgate (liquidez D+) dos fundos da carteira oficial', () => {
+    // Kinea Oportunidade -> D+91
+    const kinea = buscarFundoGuia('Kinea Oportunidade FIRF CrPr RL - Subclasse I');
+    expect(kinea?.liquidez).toBe('D+91');
+
+    // Sparta TOP -> D+31
+    const sparta = buscarFundoGuia('Sparta TOP FICFIRF LP CrPr RL');
+    expect(sparta?.liquidez).toBe('D+31');
+
+    // Bradesco Zupo -> D+6
+    const zupo = buscarFundoGuia('Bradesco Zupo FICFIRF LP CrPr RL');
+    expect(zupo?.liquidez).toBe('D+6');
+
+    // MAG Cash 10 -> D+10
+    const magCash = buscarFundoGuia('MAG Cash 10 FIRF CrPr RL');
+    expect(magCash?.liquidez).toBe('D+10');
+
+    // Absolute Creta -> D+31
+    const creta = buscarFundoGuia('Absolute Creta P FICFIRF CrPr');
+    expect(creta?.liquidez).toBe('D+31');
+
+    // A função classificar retorna a liquidez
+    const cls = classificar('SPARTA TOP FIC RF CrPr LP');
+    expect(cls.liquidez).toBe('D+31');
+  });
 });
+
