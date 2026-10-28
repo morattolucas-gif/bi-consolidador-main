@@ -242,7 +242,7 @@ export function reclassificarPosicoes() {
         reg.estrategia = cls.estr;
         reg.mercado = cls.classe;
         reg.classe = cls.classe;
-        reg.sub = cls.sub;
+        (reg as any).sub = cls.sub;
         reg.subclasse = cls.sub;
         if ((cls as any).guia?.cnpjFormatado && !reg.cnpj) reg.cnpj = (cls as any).guia.cnpjFormatado;
         if ((cls as any).guia?.gestor && !(reg as any).gestor) (reg as any).gestor = (cls as any).guia.gestor;

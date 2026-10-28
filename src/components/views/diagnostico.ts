@@ -30,6 +30,7 @@ import {
   soPrimeiroNome,
   valor
 } from '../formatters';
+import { IMG_P_CAPA, IMG_BTG_CAPA, IMG_LOGO_PADRAO } from './report-assets';
 import { DIAG_REPORT_CSS } from '../../styles/report-styles';
 import { buscarFundoGuia } from '../../parsers/fund-guide';
 

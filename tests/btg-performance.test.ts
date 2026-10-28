@@ -38,7 +38,7 @@ describe.skipIf(!temArquivo)('Parser BTG - Relatório de Performance PDF', () =>
 
   it('classifica todos os 10 ativos com suas respectivas visões de risco de crédito e estratégias', () => {
     const ext = lerExtratoPdf(linhasPdf);
-    const mapa = new Map(ext.regs.map(r => [r.ativo, r]));
+    const mapa = new Map<string, any>(ext.regs.map(r => [r.ativo, r]));
 
     // 1. Kinea Oportunidade -> Corp
     const kinea = mapa.get('KINEA OPORTUNIDADE FIRF CrPr SUBCLASSE I');
