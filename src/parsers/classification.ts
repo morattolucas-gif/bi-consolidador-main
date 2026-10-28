@@ -10,16 +10,18 @@ export function estrategiaIndexador(ix: string): string | null {
 }
 
 export function estrategiaFundo(w: string, dica: string = ''): string {
-  if (/ fidc /.test(w)) return 'Alternativo';
+  if (/ (fidc|estruturado) /.test(w)) return 'Pós-fixado';
   const d = ' ' + norm(dica).replace(/[^a-z0-9]+/g, ' ').trim() + ' ';
-  if (/ multimercado/.test(d)) return 'Retorno Absoluto (MM)';
+  if (/ multimercado/.test(d) && !/ (crpr|credito|cred|fidc|estruturado) /.test(w)) return 'Retorno Absoluto (MM)';
   if (/ (acoes|renda variavel) /.test(d)) return 'Renda Variável';
   const porDica = estrategiaIndexador(dica);
   if (porDica) return porDica;
+  // Se for Crédito Privado ou Estruturado, tem precedência sobre a sigla formal FIM
+  if (/ (crpr|credito|cred|debent|recebiveis|fidc|estruturado) /.test(w)) return 'Pós-fixado';
   if (/ (fia|acoes|acao) /.test(w)) return 'Renda Variável';
   if (/ (fim|mult|multimercado|macro) /.test(w)) return 'Retorno Absoluto (MM)';
   if (/ (ntnb|ntn b|ipca|inflacao|imab|ima b) /.test(w)) return 'Inflação';
-  if (/ (rf|firf|firfrefdi|refdi|di|selic|referen|referenciado|renda fixa|simples|cp|credito) /.test(w)) return 'Pós-fixado';
+  if (/ (rf|firf|firfrefdi|refdi|di|selic|referen|referenciado|renda fixa|simples|cp) /.test(w)) return 'Pós-fixado';
   return 'Sem classificação';
 }
 
@@ -68,7 +70,14 @@ export function classificar(
     return { classe: 'Previdência', sub: 'PP', estr: estrategiaFundo(w, dica), riscoCredito: 'Corp', contraparte: 'Corp' };
   }
   if (/ (fidc|fip) /.test(w)) {
-    return { classe: 'Fundos', sub: 'FN', estr: 'Alternativo', riscoCredito: 'Estr', contraparte: 'Estr' };
+    const isFidc = / fidc /.test(w);
+    return {
+      classe: 'Fundos',
+      sub: isFidc ? 'FN' : 'FIP',
+      estr: isFidc ? (estrIx || 'Pós-fixado') : 'Alternativo',
+      riscoCredito: isFidc ? 'Estr' : 'Alt',
+      contraparte: isFidc ? 'Estr' : 'Alt'
+    };
   }
 
   const fundoNome = / (fi|fic|fia|fim|firf|firfrefdi|refdi|fundo|fundos|referenciado) /.test(w);
@@ -111,10 +120,11 @@ export function classificar(
 
   if (/ coe /.test(w)) return { classe: 'COE', sub: 'COE', estr: 'Alternativo', tipo: 'COE', riscoCredito: 'Banc', contraparte: 'Banc' };
   if (/ (fic|fi|fia|fim|firf|fundo|fundos|referenciado) /.test(w) || / fundo/.test(c)) {
+    const isEstr = / (mca|fidc|estruturado|credito estruturado) /.test(w);
     const isBanc = / (mag cash|zupo|bancario|pos fixado|di simples|referenciado di|tesouraria) /.test(w);
-    const isEstr = / (mca|fidc|estruturado) /.test(w);
     const rc = isEstr ? 'Estr' : isBanc ? 'Banc' : 'Corp';
-    return { classe: 'Fundos', sub: 'FN', estr: estrategiaFundo(w, dica), riscoCredito: rc, contraparte: rc };
+    const estr = isEstr ? (estrIx || 'Pós-fixado') : estrategiaFundo(w, dica);
+    return { classe: 'Fundos', sub: 'FN', estr, riscoCredito: rc, contraparte: rc };
   }
   if (/ (acoes|acao|renda variavel) /.test(c)) return { classe: 'Renda Variável', sub: 'ACAO', estr: 'Renda Variável', riscoCredito: 'Acoes', contraparte: 'Acoes' };
   if (/ renda fixa /.test(c)) return { classe: 'Renda Fixa', sub: 'OUTROS', estr: estrIx || 'Sem classificação', riscoCredito: 'Corp', contraparte: 'Corp' };

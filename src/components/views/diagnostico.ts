@@ -144,7 +144,7 @@ export function dgEnriquecer(p: any, base: Date) {
   else if (m === 'coe') classe = intl ? 'Intl' : 'Alt';
   else if (m === 'criptoativos') classe = 'Cripto';
   else if (ehLista) classe = intl ? 'Intl' : 'Acoes';
-  else if (ehFIDC) classe = 'Alt';
+  else if (ehFIDC) classe = 'Pos';
   else if (estrK === 'Acoes' && intl) classe = 'Intl';
   else classe = estrK || (ehTP ? 'Infl' : 'Outros');
 
@@ -159,7 +159,7 @@ export function dgEnriquecer(p: any, base: Date) {
   else if (ehTP || (ehFundo && tem(/ (tesouro|selic|ntn|lft|ltn) /))) cp = 'Sob';
   else if (ehBanc || m === 'coe') cp = 'Banc';
   else if (ehPriv) cp = 'Corp';
-  else if (ehFIDC) cp = 'Estr';
+  else if (ehFIDC || tem(/ (mca|fidc|estruturado) /)) cp = 'Estr';
   else if (m === 'criptoativos') cp = 'Cripto';
   else if (ehFIP || classe === 'Alt') cp = (tem(/ (divida|debenture|credito) /) ? 'Estr' : 'ReaisSoc');
   else if (ehFII) {
@@ -169,12 +169,13 @@ export function dgEnriquecer(p: any, base: Date) {
   }
   else if (classe === 'Acoes') cp = 'Acoes';
   else if (classe === 'Intl') cp = 'Intl';
-  else if (classe === 'MM') cp = 'MM';
-  else if (ehFundo && ['Pos', 'Infl', 'Pre'].includes(classe)) {
+  else if (ehFundo || ehFIDC) {
     if (tem(/ (mca|fidc|estruturado) /)) cp = 'Estr';
     else if (tem(/ (mag cash|zupo|bancario|pos fixado|di simples|referenciado di|tesouraria) /)) cp = 'Banc';
+    else if (classe === 'MM' && !tem(/ (crpr|credito|deb) /)) cp = 'MM';
     else cp = 'Corp';
   }
+  else if (classe === 'MM') cp = 'MM';
   else cp = 'Outros';
 
   // Casa gestora (quem administra o veículo) x emissor direto (devedor final)

@@ -332,8 +332,13 @@ export function lerBTGPdf(linhas: string[]): ExtratoLido {
 }
 
 export function ehBTGRelatorioPerformance(linhas: string[]): boolean {
-  const txt = linhas.slice(0, 50).join(' ');
-  return /relat\S+rio de performance/i.test(txt) && linhas.some(l => /detalhamento dos ativos|posi\S+o consolidada/i.test(l));
+  const txt = linhas.slice(0, 150).join(' ');
+  const n = norm(txt);
+  const temBTG = /btg|pactual/i.test(txt);
+  const temPerf = /performance/i.test(txt);
+  const temRelat = /relat\S*rio/i.test(txt);
+  const temTabela = linhas.some(l => /detalhamento.*ativo|posi\S+o consolidada|rentabilidade/i.test(norm(l)));
+  return (temPerf && (temRelat || temBTG)) || temTabela;
 }
 
 export function lerBTGRelatorioPerformancePdf(linhas: string[]): ExtratoLido {
@@ -364,7 +369,7 @@ export function lerBTGRelatorioPerformancePdf(linhas: string[]): ExtratoLido {
     const l = linhas[i].trim();
     if (!l) continue;
 
-    if (/detalhamento dos ativos/i.test(l)) {
+    if (/detalhamento\s+(?:dos|de|das)?\s*ativos/i.test(l)) {
       inDet = true;
       continue;
     }
@@ -375,8 +380,9 @@ export function lerBTGRelatorioPerformancePdf(linhas: string[]): ExtratoLido {
         continue;
       }
 
-      if (/em carteira/i.test(l)) {
-        const n = norm(l);
+      const n = norm(l);
+      // Linhas de cabeçalho de estratégia (ex: "Pós-axado Em cart eira 92,06%", "Inflação Em carteira 7,94%")
+      if (/^(pos.*xado|infla|pre.*xado|multimercado|renda vari|alternativo|internacional)/.test(n) && (/\d+,\d{2}%/.test(n) || /cart.*eira/.test(n))) {
         if (/pos.*xado/.test(n)) currEstr = 'Pós-fixado';
         else if (/infla/.test(n)) currEstr = 'Inflação';
         else if (/pre.*xado/.test(n)) currEstr = 'Pré-fixado';
@@ -387,7 +393,8 @@ export function lerBTGRelatorioPerformancePdf(linhas: string[]): ExtratoLido {
         continue;
       }
 
-      if (/^(Ativo|TOTAL R\$|P\S+gina \d+|<<PAGINA>>|Relat\S+rio de Performance|Per\S+odo de)/i.test(l)) {
+      // Ignora linhas de totalização ou cabeçalho de coluna
+      if (/^total\b|\btotal\s+r\$/i.test(l) || /^(ativo\b|p\S+gina\b|<<pagina>>|relat\S+rio|per\S+odo)/i.test(l)) {
         continue;
       }
 
@@ -399,36 +406,40 @@ export function lerBTGRelatorioPerformancePdf(linhas: string[]): ExtratoLido {
 
         const prefix = l.slice(0, mVal.index).trim();
         const mDt = prefix.match(/(\d{2}\/\d{2}\/\d{4})/);
-        let nomeAtivo = prefix;
+
+        // Uma posição ativa no Detalhamento dos Ativos OBRIGATORIAMENTE tem Data Inicial (DD/MM/YYYY)
+        if (!mDt) continue;
+
+        const nomeAtivo = prefix.slice(0, mDt.index).trim();
+        if (!nomeAtivo || /^(pos.*xado|infla|total|carteira|ativo)/i.test(norm(nomeAtivo))) {
+          continue;
+        }
+
+        let resto = prefix.slice(mDt.index + mDt[0].length).trim();
         let venc: string | undefined;
         let resg: string | undefined;
         let qtd: number | undefined;
         let taxa: string | undefined;
 
-        if (mDt) {
-          nomeAtivo = prefix.slice(0, mDt.index).trim();
-          let resto = prefix.slice(mDt.index + mDt[0].length).trim();
-
-          const mVenc = resto.match(/\b(\d{2}\/\d{2}\/\d{4})\b/);
-          if (mVenc) {
-            venc = mVenc[1];
-            resto = resto.replace(mVenc[0], '');
-          }
-
-          const mResg = resto.match(/\b(D\+\d+)\b/i);
-          if (mResg) {
-            resg = mResg[1].toUpperCase();
-            resto = resto.replace(mResg[0], '');
-          }
-
-          const mQtd = resto.match(/^([\d.]+,\d{2})/);
-          if (mQtd) {
-            qtd = numero(mQtd[1]) || undefined;
-            resto = resto.replace(mQtd[0], '');
-          }
-
-          taxa = resto.replace(/\s+/g, ' ').trim() || undefined;
+        const mVenc = resto.match(/\b(\d{2}\/\d{2}\/\d{4})\b/);
+        if (mVenc) {
+          venc = mVenc[1];
+          resto = resto.replace(mVenc[0], '');
         }
+
+        const mResg = resto.match(/\b(D\+\d+)\b/i);
+        if (mResg) {
+          resg = mResg[1].toUpperCase();
+          resto = resto.replace(mResg[0], '');
+        }
+
+        const mQtd = resto.match(/^([\d.]+,\d{2})/);
+        if (mQtd) {
+          qtd = numero(mQtd[1]) || undefined;
+          resto = resto.replace(mQtd[0], '');
+        }
+
+        taxa = resto.replace(/\s+/g, ' ').trim() || undefined;
 
         const cls = classificar(nomeAtivo, { indexador: taxa, dica: currEstr || '' });
         const emissorPadrao = cls.tipo === 'LFT'
