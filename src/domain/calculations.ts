@@ -10,7 +10,8 @@ export const DIMS: Record<string, string> = {
   subclasse: 'Subclasse',
   estrategia: 'Estratégia',
   riscoCredito: 'Risco de Crédito',
-  instituicao: 'Instituição'
+  instituicao: 'Instituição',
+  liquidez: 'Liquidez (D+)'
 };
 
 export const CHAVE: Record<string, (p: Posicao) => any> = {
@@ -19,7 +20,8 @@ export const CHAVE: Record<string, (p: Posicao) => any> = {
   estrategia: p => p.estrategia,
   riscoCredito: p => RISCO_CREDITO[p.riscoCredito || p.contraparte || ''] || p.riscoCredito || 'Outros',
   instituicao: p => p.instituicao,
-  ativo: p => p.nomeAtivo
+  ativo: p => p.nomeAtivo,
+  liquidez: p => p.liquidez ? (p.liquidez.toUpperCase().startsWith('D+') ? p.liquidez : 'D+' + p.liquidez) : 'Sem prazo'
 };
 
 export const valor = (p: Posicao): number => (p as any)[S.campoValor] || 0;

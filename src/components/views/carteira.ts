@@ -14,6 +14,7 @@ import {
   unidadeDe,
   unidades
 } from '../../domain/calculations';
+import { calcularDiagnosticoBase, type DiagnosticoGlobal } from '../../domain/portfolio-risk';
 import { kpi } from '../kpi';
 import { barras, calor } from '../charts';
 import { tabela, ordenar, setaOrdem } from '../dom';
@@ -23,32 +24,238 @@ export const attrUnidade = (u: any) => `data-ir-unidade="${esc(u.key)}"`;
 export const celUnidade = (u: any) =>
   `<div class="conta-cel"><span>${esc(u.nome)}${u.tipo === 'familia' ? '<span class="tag">família</span>' : ''}</span><small>${esc(u.sub)}</small></div>`;
 
+let ultimoDiagGlobal: DiagnosticoGlobal | null = null;
+let statusFiltro = 'todos';
+let filtroIniciado = false;
+
+function initFiltrosConformidade() {
+  if (filtroIniciado) return;
+  const wrap = $('#filtro-status-desenquadramento');
+  if (!wrap) return;
+  filtroIniciado = true;
+  wrap.addEventListener('click', (e) => {
+    const btn = (e.target as HTMLElement).closest('button.pill-filtro') as HTMLButtonElement | null;
+    if (!btn || !btn.dataset.status) return;
+    statusFiltro = btn.dataset.status;
+    wrap.querySelectorAll('button.pill-filtro').forEach(b => b.classList.remove('ativo'));
+    btn.classList.add('ativo');
+    if (ultimoDiagGlobal) {
+      renderTabelaConformidade(ultimoDiagGlobal);
+    }
+  });
+}
+
+function renderTabelaConformidade(diagGlobal: DiagnosticoGlobal) {
+  const painel = $('#painel-desenquadramento');
+  if (!painel) return;
+
+  const lista = diagGlobal.unidades.filter(u => {
+    if (statusFiltro === 'todos') return true;
+    return u.status === statusFiltro;
+  });
+
+  if (lista.length === 0) {
+    painel.innerHTML = `<div style="text-align:center;padding:24px;color:var(--muted);font-size:13px;">Nenhum cliente encontrado com status "${esc(statusFiltro)}".</div>`;
+    return;
+  }
+
+  const cab = `
+    <thead>
+      <tr>
+        <th>Cliente / Família</th>
+        <th>Mandato / Política</th>
+        <th style="text-align:center;">Status</th>
+        <th class="num-col">Patrimônio</th>
+        <th>Desvios de Classes Estratégicas</th>
+        <th>Teto de Crédito</th>
+        <th class="num-col">Gap Rebalancear</th>
+        <th style="text-align:center;">Ação</th>
+      </tr>
+    </thead>`;
+
+  const corpo = lista.map(u => {
+    const badge = u.status === 'desenquadrado'
+      ? `<span class="badge-status desenquadrado">🚨 Desenquadrado</span>`
+      : u.status === 'alerta'
+      ? `<span class="badge-status alerta">⚠️ Atenção</span>`
+      : `<span class="badge-status enquadrado">✔ Enquadrado</span>`;
+
+    const desviosClasses = u.desviosClasses.length === 0
+      ? `<span class="tag-ok">✔ Classes conformes</span>`
+      : u.desviosClasses.map(v => {
+          if (v.tipo === 'excesso') {
+            return `<span class="tag-violacao" title="${esc(v.mensagem)}">↑ ${esc(v.nome)} (${pct(v.pctAtual)} vs teto ${pct(v.pctMax)})</span>`;
+          } else {
+            return `<span class="tag-violacao alerta" title="${esc(v.mensagem)}">↓ ${esc(v.nome)} (${pct(v.pctAtual)} vs piso ${pct(v.pctMin)})</span>`;
+          }
+        }).join(' ');
+
+    const desviosCredito = u.desviosCredito.length === 0
+      ? `<span class="tag-ok">✔ Limites respeitados</span>`
+      : u.desviosCredito.map(c => `<span class="tag-violacao credito" title="${esc(c.mensagem)}">⚡ ${esc(c.nome)} (${pct(c.pctAtual)} vs teto ${pct(c.pctMax)})</span>`).join(' ');
+
+    const gapFormatado = u.gapRebalanceamentoR$ > 0
+      ? `<span class="col-gap">${brlCurto(u.gapRebalanceamentoR$)}</span>`
+      : `<span style="color:var(--muted);">–</span>`;
+
+    const subDesc = u.tipo === 'familia' ? 'Família agregada' : `${u.contas.length} ${u.contas.length === 1 ? 'conta' : 'contas'}`;
+
+    return `
+      <tr>
+        <td>
+          <div style="font-weight:650;color:var(--ink);">${esc(u.nome)}</div>
+          <div style="font-size:11px;color:var(--muted);">${esc(subDesc)}</div>
+        </td>
+        <td>
+          <span class="tag" style="font-size:11px;">Política Padrão</span>
+        </td>
+        <td style="text-align:center;">${badge}</td>
+        <td class="num-col" style="font-weight:600;">${brlCurto(u.pl)}</td>
+        <td>${desviosClasses}</td>
+        <td>${desviosCredito}</td>
+        <td class="num-col">${gapFormatado}</td>
+        <td style="text-align:center;">
+          <button type="button" class="btn-acao-diag" data-ir-unidade="${esc(u.key)}" title="Abrir carteira e detalhe deste cliente">Ver Cliente ↗</button>
+        </td>
+      </tr>`;
+  }).join('');
+
+  painel.innerHTML = `<table class="tab-conformidade">${cab}<tbody>${corpo}</tbody></table>`;
+}
+
+function renderMatrizConformidade(diagGlobal: DiagnosticoGlobal) {
+  ultimoDiagGlobal = diagGlobal;
+  initFiltrosConformidade();
+
+  const cTodos = $('#cont-todos');
+  if (cTodos) cTodos.textContent = String(diagGlobal.unidades.length);
+  const cDes = $('#cont-desenquadrados');
+  if (cDes) cDes.textContent = String(diagGlobal.qtdClientesDesenquadrados);
+  const cAle = $('#cont-alertas');
+  if (cAle) cAle.textContent = String(diagGlobal.qtdClientesAlerta);
+  const cEnq = $('#cont-enquadrados');
+  if (cEnq) cEnq.textContent = String(diagGlobal.qtdClientesEnquadrados);
+
+  const wrap = $('#filtro-status-desenquadramento');
+  if (wrap) {
+    wrap.querySelectorAll('button.pill-filtro').forEach(b => {
+      b.classList.toggle('ativo', (b as HTMLElement).dataset.status === statusFiltro);
+    });
+  }
+
+  renderTabelaConformidade(diagGlobal);
+}
+
+function renderPainelSwaps(diagGlobal: DiagnosticoGlobal) {
+  const painelSwaps = $('#painel-swaps');
+  const resumoSwapsHeader = $('#resumo-swaps-header');
+  if (!painelSwaps) return;
+
+  if (diagGlobal.sugestoesSwaps.length === 0) {
+    painelSwaps.innerHTML = `<div class="swaps-vazio">✔ Nenhuma necessidade crítica de rebalanceamento identificada no momento. Todas as carteiras estão dentro das bandas de tolerância.</div>`;
+    if (resumoSwapsHeader) resumoSwapsHeader.innerHTML = '';
+    return;
+  }
+
+  if (resumoSwapsHeader) {
+    resumoSwapsHeader.innerHTML = `<span><b>${diagGlobal.sugestoesSwaps.length}</b> ${diagGlobal.sugestoesSwaps.length === 1 ? 'oportunidade de troca' : 'oportunidades de trocas (swaps)'}</span>`;
+  }
+
+  const htmlCards = diagGlobal.sugestoesSwaps.map(s => {
+    const urgenciaCls = s.urgencia === 'alta' ? 'alta' : s.urgencia === 'media' ? 'media' : 'baixa';
+    const urgenciaRot = s.urgencia === 'alta' ? '🚨 Alta Prioridade' : s.urgencia === 'media' ? '⚠️ Média Prioridade' : '💡 Oportunidade';
+    const pontaOrigemRot = s.origem.tipo === 'vencimento' ? 'Vencimento Próximo' : 'Excesso Acima do Teto';
+    const pontaOrigemNome = s.origem.descricao;
+
+    return `
+    <div class="card-swap">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
+        <span style="font-weight:700;font-size:13px;color:var(--ink);">${esc(s.clienteNome || 'Carteira')}</span>
+        <span class="swap-urgencia ${urgenciaCls}">${urgenciaRot}</span>
+      </div>
+      <div class="swap-origem-destino">
+        <div class="swap-ponta origem">
+          <div class="swap-ponta-rot">${pontaOrigemRot}</div>
+          <div class="swap-ponta-nome" title="${esc(pontaOrigemNome)}">${esc(pontaOrigemNome)}</div>
+          <div class="swap-ponta-det">Disponível: ${brlCurto(s.origem.valorDisponivel)}</div>
+        </div>
+        <div class="swap-seta">➔</div>
+        <div class="swap-ponta destino">
+          <div class="swap-ponta-rot">Destino (Suprir Déficit)</div>
+          <div class="swap-ponta-nome" title="${esc(s.destino.nomeClasse)}">${esc(s.destino.nomeClasse)}</div>
+          <div class="swap-ponta-det">Déficit: ${brlCurto(s.destino.deficitR$)} · Alvo: ${brlCurto(s.destino.alvoR$)}</div>
+        </div>
+      </div>
+      <div class="swap-motivo">${esc(s.impactoEsperado)}</div>
+      <div class="swap-rodape">
+        <span style="color:var(--muted);font-size:11.5px;">Volume sugerido:</span>
+        <span class="swap-valor">${brlCurto(s.valorSugeridoR$)} <span style="font-size:11px;font-weight:normal;color:var(--muted);">(${brl(s.valorSugeridoR$)})</span></span>
+      </div>
+    </div>`;
+  }).join('');
+
+  painelSwaps.innerHTML = `<div class="swaps-grid">${htmlCards}</div>`;
+}
+
 export function renderCarteira() {
   const P = S.posicoes,
     total = somar(P),
     contas = contasResumo();
-  const caixaTotal = somaLista(P.filter(p => p.caixa), valor);
+
+  const nivel = (S.mapa as any)?.linhas || 'cliente';
+  const diagGlobal = calcularDiagnosticoBase(P, nivel);
 
   const kpiEl = $('#kpi-carteira');
   if (kpiEl) {
     kpiEl.innerHTML =
-      kpi('Patrimônio total', brlCurto(total), '', brl(total)) +
       kpi(
-        'Clientes',
-        inteiro(S.clientes.size),
-        `${inteiro(contas.size)} contas${
-          S.familias.size ? ` · ${inteiro(S.familias.size)} família(s) com 2+ pessoas` : ''
-        }`
+        'Patrimônio Monitorado',
+        brlCurto(diagGlobal.totalPL),
+        `${diagGlobal.qtdClientesTotal} ${diagGlobal.qtdClientesTotal === 1 ? 'cliente' : 'clientes'} · ${inteiro(P.length)} ativos`,
+        brl(diagGlobal.totalPL)
       ) +
       kpi(
-        'Patrimônio médio por cliente',
-        brlCurto(total / (S.clientes.size || 1)),
-        '',
-        brl(total / (S.clientes.size || 1))
+        'Conformidade de Mandato',
+        pct(diagGlobal.pctEnquadrado),
+        `${diagGlobal.qtdClientesDesenquadrados} desenquadrado(s) · ${diagGlobal.qtdClientesAlerta} em atenção`,
+        `${pct(diagGlobal.pctEnquadrado)} dos clientes respeitam limites da política`
       ) +
-      kpi('Caixa na base', brlCurto(caixaTotal), `${pct(caixaTotal / (total || 1))} do patrimônio`, brl(caixaTotal)) +
-      kpi('Ativos diferentes', inteiro(new Set(investimentos().map(p => p.nomeAtivo)).size));
+      kpi(
+        'Volume a Rebalancear (Gap)',
+        brlCurto(diagGlobal.volumeGapRebalanceamentoR$),
+        `${pct(diagGlobal.volumeGapRebalanceamentoR$ / (diagGlobal.totalPL || 1))} do patrimônio fora da política`,
+        brl(diagGlobal.volumeGapRebalanceamentoR$)
+      ) +
+      kpi(
+        'Liquidez < D+5 & Vencimentos',
+        brlCurto(diagGlobal.liquidezCurtoPrazoTotal),
+        `< D+5 (${pct(diagGlobal.pctLiquidezCurtoPrazo)}) · ${brlCurto(diagGlobal.vencimentos90DiasTotal)} vencem < 90d`,
+        `Imediata (< D+5): ${brl(diagGlobal.liquidezCurtoPrazoTotal)} | Vencimentos < 90d: ${brl(diagGlobal.vencimentos90DiasTotal)}`
+      ) +
+      kpi(
+        'Concentração por Emissor',
+        pct(diagGlobal.topEmissorPct),
+        diagGlobal.topEmissorNome || 'Nenhum emissor',
+        `Maior exposição: ${diagGlobal.topEmissorNome} (${pct(diagGlobal.topEmissorPct)} do PL total)`
+      );
+
+    const cards = kpiEl.querySelectorAll('.kpi');
+    if (cards[1]) {
+      cards[1].classList.add(diagGlobal.pctEnquadrado < 0.5 ? 'kpi-alerta' : diagGlobal.pctEnquadrado < 0.9 ? 'kpi-aviso' : 'kpi-ok');
+    }
+    if (cards[2]) {
+      cards[2].classList.add(diagGlobal.volumeGapRebalanceamentoR$ > 0 ? 'kpi-alerta' : 'kpi-ok');
+    }
+    if (cards[3]) {
+      cards[3].classList.add('kpi-info');
+    }
+    if (cards[4] && diagGlobal.topEmissorPct > 0.25) {
+      cards[4].classList.add('kpi-aviso');
+    }
   }
+
+  renderMatrizConformidade(diagGlobal);
+  renderPainelSwaps(diagGlobal);
 
   renderMapa(contas, total);
 

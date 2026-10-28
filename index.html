@@ -138,6 +138,35 @@
     <section class="aba" id="aba-carteira">
       <div class="kpis" id="kpi-carteira"></div>
 
+      <!-- Matriz de Conformidade & Gestão de Risco -->
+      <div class="cartao" id="cartao-conformidade">
+        <div class="cartao-topo">
+          <div>
+            <h2>Matriz de Conformidade & Gestão de Risco</h2>
+            <p>Monitoramento de enquadramento ao mandato, desvios de classes estratégicas e limites de risco de crédito</p>
+          </div>
+          <div class="filtros-status" id="filtro-status-desenquadramento">
+            <button class="pill-filtro ativo" data-status="todos" type="button">Todos (<span id="cont-todos">0</span>)</button>
+            <button class="pill-filtro pill-danger" data-status="desenquadrado" type="button">🚨 Desenquadrados (<span id="cont-desenquadrados">0</span>)</button>
+            <button class="pill-filtro pill-warning" data-status="alerta" type="button">⚠️ Atenção (<span id="cont-alertas">0</span>)</button>
+            <button class="pill-filtro pill-success" data-status="enquadrado" type="button">✔ Enquadrados (<span id="cont-enquadrados">0</span>)</button>
+          </div>
+        </div>
+        <div id="painel-desenquadramento" class="tabela-scroll"></div>
+      </div>
+
+      <!-- Radar de Rebalanceamento & Oportunidades de Troca -->
+      <div class="cartao" id="cartao-swaps">
+        <div class="cartao-topo">
+          <div>
+            <h2>Radar de Rebalanceamento & Oportunidades de Troca (Swaps)</h2>
+            <p>Sugestões acionáveis de realocação: originar recursos de classes em excesso ou vencimentos imediatos para cobrir classes deficitárias</p>
+          </div>
+          <div id="resumo-swaps-header" class="swaps-meta"></div>
+        </div>
+        <div id="painel-swaps"></div>
+      </div>
+
       <!-- Mapa de exposição: gráfico principal, configurável -->
       <div class="cartao cartao-destaque" id="cartao-mapa">
         <div class="cartao-topo">
@@ -159,6 +188,7 @@
               <button data-v="riscoCredito" aria-pressed="false">Risco de Crédito</button>
               <button data-v="instituicao" aria-pressed="false">Instituição</button>
               <button data-v="ativo" aria-pressed="false">Ativo</button>
+              <button data-v="liquidez" aria-pressed="false">Liquidez (D+)</button>
             </span>
           </div>
           <label><span class="rotulo">Dentro da classe</span><select id="mapa-filtro"></select></label>

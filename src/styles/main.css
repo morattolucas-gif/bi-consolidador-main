@@ -508,3 +508,68 @@ table.conf td:nth-child(4) input { text-align: right; }
   .logo { height: 34px; }
   .mini-trilho { width: 70px; }
 }
+
+/* ==========================================================================
+   Cockpit de Gestão de Portfólio & Gestão de Risco
+   ========================================================================== */
+.kpi.kpi-alerta { border-left: 4px solid var(--crit); }
+.kpi.kpi-aviso { border-left: 4px solid #f59e0b; }
+.kpi.kpi-ok { border-left: 4px solid var(--good); }
+.kpi.kpi-info { border-left: 4px solid var(--s1); }
+
+/* Badges de Status de Enquadramento */
+.badge-status { display: inline-flex; align-items: center; gap: 4px; border-radius: 999px; padding: 2px 9px; font-size: 11.5px; font-weight: 650; white-space: nowrap; }
+.badge-status.desenquadrado { background: #fee2e2; color: #991b1b; border: 1px solid #fca5a5; }
+.badge-status.alerta { background: #fef3c7; color: #92400e; border: 1px solid #fcd34d; }
+.badge-status.enquadrado { background: #dcfce7; color: #166534; border: 1px solid #86efac; }
+
+:root[data-theme="dark"] .badge-status.desenquadrado { background: rgba(239, 68, 68, 0.2); color: #fca5a5; border-color: rgba(239, 68, 68, 0.4); }
+:root[data-theme="dark"] .badge-status.alerta { background: rgba(245, 158, 11, 0.2); color: #fcd34d; border-color: rgba(245, 158, 11, 0.4); }
+:root[data-theme="dark"] .badge-status.enquadrado { background: rgba(34, 197, 94, 0.2); color: #86efac; border-color: rgba(34, 197, 94, 0.4); }
+
+/* Filtros de Status */
+.filtros-status { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.pill-filtro { border-radius: 999px; border: 1px solid var(--border); background: var(--surface-2); color: var(--ink-2); font-size: 12px; font-weight: 550; padding: 4px 12px; cursor: pointer; transition: all .15s ease; }
+.pill-filtro:hover { background: var(--surface); color: var(--ink); border-color: var(--axis); }
+.pill-filtro.ativo { background: var(--marca); color: #fff; border-color: var(--marca); font-weight: 650; }
+.pill-filtro.pill-danger.ativo { background: #dc2626; color: #fff; border-color: #b91c1c; }
+.pill-filtro.pill-warning.ativo { background: #d97706; color: #fff; border-color: #b45309; }
+.pill-filtro.pill-success.ativo { background: #16a34a; color: #fff; border-color: #15803d; }
+
+/* Tags de Violação e Alertas */
+.tag-violacao { display: inline-flex; align-items: center; gap: 3px; font-size: 11px; font-weight: 600; padding: 2px 7px; border-radius: 4px; background: rgba(220, 38, 38, 0.08); color: #b91c1c; border: 1px solid rgba(220, 38, 38, 0.25); margin: 2px 4px 2px 0; }
+.tag-violacao.alerta { background: rgba(217, 119, 6, 0.08); color: #b45309; border-color: rgba(217, 119, 6, 0.25); }
+.tag-violacao.credito { background: rgba(147, 51, 234, 0.08); color: #7e22ce; border-color: rgba(147, 51, 234, 0.25); }
+.tag-ok { display: inline-flex; align-items: center; gap: 3px; font-size: 11px; font-weight: 600; padding: 2px 7px; border-radius: 4px; background: rgba(22, 163, 74, 0.08); color: #15803d; border: 1px solid rgba(22, 163, 74, 0.25); }
+
+/* Tabela de Conformidade */
+.tab-conformidade { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.tab-conformidade th { text-align: left; background: var(--surface-2); padding: 8px 12px; font-weight: 650; color: var(--ink-2); border-bottom: 1px solid var(--border); white-space: nowrap; }
+.tab-conformidade td { padding: 8px 12px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+.tab-conformidade tr:hover td { background: color-mix(in srgb, var(--surface-2) 65%, transparent); }
+.tab-conformidade .num-col { text-align: right; }
+.tab-conformidade .col-gap { font-weight: 650; color: var(--crit); }
+.btn-acao-diag { font-size: 11.5px; padding: 4px 8px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface); cursor: pointer; font-weight: 600; color: var(--link); transition: all .15s ease; }
+.btn-acao-diag:hover { background: var(--link); color: #fff; border-color: var(--link); }
+
+/* Radar de Swaps */
+.swaps-meta { font-size: 12.5px; color: var(--ink-2); display: flex; align-items: center; gap: 12px; }
+.swaps-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap: 14px; margin-top: 10px; }
+.card-swap { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.03); transition: transform 0.15s, box-shadow 0.15s; }
+.card-swap:hover { transform: translateY(-1px); box-shadow: 0 4px 14px rgba(0,0,0,0.07); border-color: var(--s1); }
+.swap-origem-destino { display: flex; align-items: stretch; justify-content: space-between; gap: 8px; }
+.swap-ponta { flex: 1; padding: 8px 10px; border-radius: 8px; background: var(--surface-2); font-size: 12px; min-width: 0; }
+.swap-ponta.origem { border-left: 3px solid #ef4444; }
+.swap-ponta.destino { border-left: 3px solid #10b981; }
+.swap-ponta-rot { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); margin-bottom: 2px; font-weight: 600; }
+.swap-ponta-nome { font-weight: 700; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 12.5px; }
+.swap-ponta-det { font-size: 11px; color: var(--ink-2); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.swap-seta { color: var(--s1); font-size: 20px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; padding: 0 4px; }
+.swap-rodape { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 12px; padding-top: 8px; border-top: 1px dashed var(--border); }
+.swap-valor { font-weight: 700; color: var(--ink); font-size: 13.5px; }
+.swap-urgencia { font-size: 11px; padding: 2px 7px; border-radius: 4px; font-weight: 650; }
+.swap-urgencia.alta { background: #fee2e2; color: #991b1b; }
+.swap-urgencia.media { background: #fef3c7; color: #92400e; }
+.swap-urgencia.baixa { background: #e0f2fe; color: #075985; }
+.swap-motivo { font-size: 11.5px; color: var(--ink-2); line-height: 1.4; background: var(--surface-2); padding: 6px 10px; border-radius: 6px; }
+.swaps-vazio { text-align: center; padding: 24px 16px; color: var(--muted); font-size: 13px; }
